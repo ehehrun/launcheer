@@ -19,11 +19,13 @@ Launcheer brings the familiar Launchpad experience to your Mac: a full-screen ap
 
 ## Quick start
 
-Use the **Apple Silicon DMG**. Open it and copy the complete `Launcheer.app` to a local folder, such as Applications.
+Use the **Apple Silicon DMG**. Open it, double-click **`Install Launcheer.pkg`**, and follow the macOS Installer prompts to confirm and authorize installation.
 
-Builds use ad-hoc signing and are not notarized. If macOS blocks the downloaded app, try opening it, then go to **System Settings → Privacy & Security → Open Anyway** and confirm **Open** for Launcheer. See [Apple’s instructions](https://support.apple.com/en-us/102445).
+Installer asks you to quit any running Launcheer instance and installs the app in `/Applications` on the startup disk. Your layout and preferences are kept. No Terminal commands or restart are required by the installer.
 
-1. Open `Launcheer.app`.
+The PKG is unsigned and contains an ad-hoc signed App; it is not notarized. macOS may still require explicit approval after downloading. The installer does not bypass macOS security checks.
+
+1. Open `Launcheer.app` from Applications.
 2. Press **Option + Space** to show or hide the launcher.
 3. Click an app to launch it, or type its name in the search field.
 4. Enter **`/settings`** in the launcher search field to open settings. You can also use **Settings…** in Launcheer’s application or Dock menu.

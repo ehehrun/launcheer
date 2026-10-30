@@ -19,11 +19,13 @@ Launcheer 为 Mac 带回熟悉的启动台体验：全屏应用网格、文件�
 
 ## 快速开始
 
-请使用 **Apple Silicon DMG 安装包**。打开后，将完整的 `Launcheer.app` 复制到本地文件夹，例如“应用程序”。
+请使用 **Apple Silicon DMG 安装包**。打开 DMG，双击 **`Install Launcheer.pkg`**，按照 macOS 安装器的提示确认并授权。
 
-安装包使用 ad-hoc 签名，未经过 Apple 公证。如果 macOS 阻止打开下载的应用，请先尝试打开，再前往**系统设置 → 隐私与安全性 → 仍要打开**，确认打开 Launcheer。详见 [Apple 官方说明](https://support.apple.com/zh-cn/102445)。
+安装器会要求退出正在运行的 Launcheer，将应用安装到当前系统盘的 `/Applications`；布局和偏好会保留。无需终端命令，也不要求重启。
 
-1. 打开 `Launcheer.app`。
+PKG 未签名，内含 ad-hoc 签名的 App，未经过 Apple 公证。首次下载仍可能需要系统明确允许，安装器不绕过 macOS 安全检查。
+
+1. 从“应用程序”打开 `Launcheer.app`。
 2. 按 **Option + 空格**显示或收起启动台。
 3. 点击应用启动，或在搜索框输入应用名称。
 4. 在启动台搜索框输入 **`/settings`**打开设置，也可从 Launcheer 的应用菜单或 Dock 菜单选择**设置…**。

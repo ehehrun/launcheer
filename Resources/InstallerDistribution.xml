@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<installer-gui-script minSpecVersion="2">
+    <title>Launcheer</title>
+    <options customize="never" hostArchitectures="arm64" require-scripts="false"/>
+    <domains enable_anywhere="false" enable_currentUserHome="false" enable_localSystem="true"/>
+    <volume-check script="true">
+        <allowed-os-versions>
+            <os-version min="26.0"/>
+        </allowed-os-versions>
+    </volume-check>
+    <choices-outline>
+        <line choice="default"/>
+    </choices-outline>
+    <choice id="default" title="Launcheer" description="Install Launcheer in Applications." visible="false">
+        <pkg-ref id="launcheer.kodify.vip.installer"/>
+    </choice>
+    <pkg-ref id="launcheer.kodify.vip.installer" onConclusion="None">Launcheer.component.pkg</pkg-ref>
+    <pkg-ref id="launcheer.kodify.vip.installer">
+        <must-close>
+            <app id="launcheer.kodify.vip"/>
+        </must-close>
+    </pkg-ref>
+</installer-gui-script>

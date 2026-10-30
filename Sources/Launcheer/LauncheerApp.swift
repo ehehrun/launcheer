@@ -188,6 +188,10 @@ private enum LauncheerApp {
         let menu = NSMenu()
         let item = NSMenuItem()
         let applicationMenu = NSMenu()
+        let about = NSMenuItem(title: "关于 Launcheer", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        about.target = application
+        applicationMenu.addItem(about)
+        applicationMenu.addItem(.separator())
         let settings = NSMenuItem(title: "设置…", action: #selector(NativeHost.showSettings(_:)), keyEquivalent: ",")
         settings.target = host
         applicationMenu.addItem(settings)

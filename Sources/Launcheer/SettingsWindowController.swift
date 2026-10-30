@@ -39,6 +39,14 @@ final class SettingsWindowController: NSWindowController {
         window.contentView = content
         let title = NSTextField(labelWithString: "Launcheer")
         title.font = .systemFont(ofSize: 23, weight: .semibold)
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as! String
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as! String
+        let versionLabel = NSTextField(labelWithString: "版本 \(version)（Build \(build)）")
+        versionLabel.font = .systemFont(ofSize: 12)
+        versionLabel.textColor = .secondaryLabelColor
+        let about = NSButton(title: "关于…", target: NSApp, action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)))
+        let header = column([row([title, about]), versionLabel])
+        header.spacing = 4
 
         backgroundPreview = preview(width: 154, height: 88)
         backgroundLabel = NSTextField(labelWithString: "")
@@ -65,7 +73,7 @@ final class SettingsWindowController: NSWindowController {
         help.font = .systemFont(ofSize: 12)
         help.textColor = .secondaryLabelColor
         let search = column([heading("快捷搜索"), searchCheckbox, row([NSTextField(labelWithString: "全局快捷键"), shortcutRecorder]), help])
-        let stack = column([title, background, separator(), animationCheckbox, separator(), icon, separator(), search])
+        let stack = column([header, background, separator(), animationCheckbox, separator(), icon, separator(), search])
         stack.spacing = 17
         stack.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(stack)

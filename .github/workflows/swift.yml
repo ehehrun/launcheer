@@ -46,12 +46,14 @@ jobs:
       - name: Run tests without opening windows
         run: env -u LAUNCHEER_UI_TESTS swift test -c release --no-parallel
 
+      - name: Test graphical installer package
+        run: /usr/bin/python3 Tests/Fixtures/test_install_app.py
+
       - name: Build app with ad-hoc signing
         run: ./scripts/build_app.sh
 
       - name: Check packaged app without opening windows
-        shell: bash
-        run: ./dist/Launcheer.app/Contents/MacOS/Launcheer --check-compatibility 2>&1 | tee dist/compatibility-check.txt
+        run: ./dist/Launcheer.app/Contents/MacOS/Launcheer --check-compatibility
 
       - name: Verify signature and package DMG
         id: package
@@ -59,33 +61,17 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           BUILD: ${{ steps.version.outputs.build }}
         run: |
-          codesign --verify --deep --strict --verbose=2 dist/Launcheer.app
           package="Launcheer-$VERSION-$BUILD-arm64"
-          stage="$RUNNER_TEMP/launcheer-dmg"
-          mkdir -p "$stage"
-          ditto dist/Launcheer.app "$stage/Launcheer.app"
-          ln -s /Applications "$stage/Applications"
-          hdiutil create -volname Launcheer -srcfolder "$stage" -format UDZO "dist/$package.dmg"
-          hdiutil verify "dist/$package.dmg"
-          {
-            sw_vers
-            uname -m
-            xcrun swift --version
-            cat dist/compatibility-check.txt
-          } > "dist/$package-build-info.txt"
-          cd dist
-          shasum -a 256 "$package.dmg" > "$package.dmg.sha256"
-          shasum -a 256 -c "$package.dmg.sha256"
+          ./scripts/build_dmg.sh
           printf 'name=%s\n' "$package" >> "$GITHUB_OUTPUT"
 
-      - name: Save DMG, checksum, and build information
+      - name: Save DMG and checksum
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.package.outputs.name }}
           path: |
             dist/${{ steps.package.outputs.name }}.dmg
             dist/${{ steps.package.outputs.name }}.dmg.sha256
-            dist/${{ steps.package.outputs.name }}-build-info.txt
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
@@ -116,23 +102,24 @@ jobs:
         working-directory: release-assets
         run: |
           test -f "$PACKAGE.dmg"
-          test -f "$PACKAGE-build-info.txt"
           sha256sum --check "$PACKAGE.dmg.sha256"
           cat > "$RUNNER_TEMP/release-notes.md" <<'NOTES'
           ## 安装
 
-          面向 macOS 26 及以上的 Apple Silicon Mac。打开 DMG，将 Launcheer.app 复制到本地文件夹后运行。
+          面向 macOS 26 及以上的 Apple Silicon Mac。打开 DMG，双击 `Install Launcheer.pkg`，按 macOS 安装器提示确认并授权。
+          安装器会要求退出正在运行的 Launcheer，将应用安装到当前系统盘的 `/Applications`；布局和偏好会保留。
+          无需终端命令，安装流程不要求重启。完成后手动打开“应用程序”中的 Launcheer。
 
           同一个安装包在运行时初始化本机 Dock 原生组件，不绑定构建机的 Dock UUID 或函数偏移。
           已验证的无界面原生组件兼容检查范围见仓库 README。
-          附件 build-info 记录此次构建环境与检查结果；其他系统版本和完整界面交互仍需实际验证。
+          其他系统版本和完整界面交互仍需实际验证。
 
-          使用 ad-hoc 签名，未经过 Developer ID 签名和 Apple 公证。
-          首次下载如被 macOS 阻止，请先尝试打开，再到“系统设置 → 隐私与安全性 → 仍要打开”确认 Launcheer。
+          PKG 未签名，内含 ad-hoc 签名的 App，未经过 Developer ID 签名和 Apple 公证。
+          首次下载仍可能需要系统明确允许；安装器不绕过 macOS 安全检查。
           `.dmg.sha256` 为安装包的 SHA-256 校验文件。
           NOTES
           gh release create "$RELEASE_TAG" \
-            "$PACKAGE.dmg" "$PACKAGE.dmg.sha256" "$PACKAGE-build-info.txt" \
+            "$PACKAGE.dmg" "$PACKAGE.dmg.sha256" \
             --verify-tag \
             --title "Launcheer $VERSION (build $BUILD)" \
             --notes-file "$RUNNER_TEMP/release-notes.md"

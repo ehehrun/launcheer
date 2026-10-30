@@ -18,6 +18,7 @@ mkdir -p "$STAGE/Contents/MacOS" "$RESOURCES" "$ROOT/dist"
 cp "$BIN_DIR/Launcheer" "$STAGE/Contents/MacOS/Launcheer"
 cp Resources/Info.plist "$STAGE/Contents/Info.plist"
 cp Resources/Launcheer.icns "$RESOURCES/"
+cp Resources/Credits.rtf "$RESOURCES/"
 cp LICENSE "$RESOURCES/"
 cp "$DOCK_RESOURCES"/ectl_search*.png "$RESOURCES/"
 for localization in "$DOCK_RESOURCES"/*.lproj; do
