@@ -1,0 +1,71 @@
+name: Swift · DMG
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: swift-dmg-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Test and build · arm64
+    runs-on: macos-26
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Check build environment and native Dock
+        run: |
+          test "$(uname -m)" = arm64
+          sw_vers
+          xcrun swift --version
+          python3 scripts/inspect_dock.py --output Sources/NativeLaunchpad/NativeDockBuild.h
+
+      - name: Run tests without opening windows
+        run: env -u LAUNCHEER_UI_TESTS swift test -c release --no-parallel
+
+      - name: Build app with ad-hoc signing
+        run: ./scripts/build_app.sh
+
+      - name: Verify signature and package DMG
+        id: package
+        run: |
+          codesign --verify --deep --strict --verbose=2 dist/Launcheer.app
+          version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Resources/Info.plist)
+          build=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' Resources/Info.plist)
+          system_build=$(sw_vers -buildVersion)
+          package="Launcheer-$version-$build-arm64-$system_build"
+          stage="$RUNNER_TEMP/launcheer-dmg"
+          mkdir -p "$stage"
+          ditto dist/Launcheer.app "$stage/Launcheer.app"
+          ln -s /Applications "$stage/Applications"
+          hdiutil create -volname Launcheer -srcfolder "$stage" -format UDZO "dist/$package.dmg"
+          hdiutil verify "dist/$package.dmg"
+          {
+            sw_vers
+            uname -m
+            xcrun swift --version
+            cat Sources/NativeLaunchpad/NativeDockBuild.h
+          } > "dist/$package-build-info.txt"
+          cd dist
+          shasum -a 256 "$package.dmg" > "$package.dmg.sha256"
+          shasum -a 256 -c "$package.dmg.sha256"
+          printf 'name=%s\n' "$package" >> "$GITHUB_OUTPUT"
+
+      - name: Save DMG, checksum, and build information
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: |
+            dist/${{ steps.package.outputs.name }}.dmg
+            dist/${{ steps.package.outputs.name }}.dmg.sha256
+            dist/${{ steps.package.outputs.name }}-build-info.txt
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

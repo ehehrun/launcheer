@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>Launcheer</string>
+	<key>CFBundleExecutable</key>
+	<string>Launcheer</string>
+	<key>CFBundleIconFile</key>
+	<string>Launcheer</string>
+	<key>CFBundleIdentifier</key>
+	<string>launcheer.kodify.vip</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>Launcheer</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright © 2026 ehehrun</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.3.27</string>
+	<key>CFBundleVersion</key>
+	<string>30</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>26.2</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSSupportsAutomaticGraphicsSwitching</key>
+	<true/>
+</dict>
+</plist>
