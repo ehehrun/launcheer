@@ -311,7 +311,7 @@ struct NativeHideAnimationTests {
     }
 
     @Test(arguments: ["reopen", "newHide", "synchronousReopen"])
-    func reopeningInvalidatesTheOlderDeadline(interruption: String) async throws {
+    func reopeningInvalidatesTheOlderDeadline(interruption: String) throws {
         let restoreMotion = try interceptHideMotion(false)
         defer { restoreMotion() }
         let input = HideAnimationInput()
@@ -325,7 +325,10 @@ struct NativeHideAnimationTests {
                 MainActor.assumeIsolated {
                     if !host.wantsLauncherVisible, let input {
                         input.host.reloadItems(queued)
-                        do { try show(input) } catch { Issue.record(error) }
+                        do {
+                            input.olderDeadline = try pendingHideDeadline(input.host)
+                            try show(input)
+                        } catch { Issue.record(error) }
                     }
                 }
             }
@@ -334,8 +337,8 @@ struct NativeHideAnimationTests {
         if interruption == "synchronousReopen" {
             observation?.invalidate()
         } else {
+            input.olderDeadline = try pendingHideDeadline(input.host)
             input.host.reloadItems(queued)
-            try await Task.sleep(for: .milliseconds(120))
             try show(input)
         }
         #expect(input.host.wantsLauncherVisible && !input.window.ignoresMouseEvents)
@@ -344,16 +347,21 @@ struct NativeHideAnimationTests {
         for layer in input.transitionLayers { #expect(layer.animation(forKey: "launcheer.hide") == nil) }
         #expect(input.host.value(forKey: "hideTask") == nil)
 
+        let oldDeadline = try #require(input.olderDeadline)
         if interruption == "newHide" {
             input.host.hideLauncher()
-            try await Task.sleep(for: .milliseconds(280))
-            #expect(input.window.orderOutCount == 0 && input.springboard.visible)
-            try await Task.sleep(for: .milliseconds(180))
-            #expect(input.window.orderOutCount == 1 && !input.springboard.visible)
+            let currentDeadline = try pendingHideDeadline(input.host)
+            oldDeadline()
+            #expect(input.window.orderOutCount == 0 && input.cover.orderOutCount == 0 && input.springboard.visible)
+            currentDeadline()
+            #expect(input.window.orderOutCount == 1 && input.cover.orderOutCount == 1 && !input.springboard.visible)
+            currentDeadline()
+            #expect(input.window.orderOutCount == 1 && input.cover.orderOutCount == 1 && input.springboard.closeCount == 1)
         } else {
-            try await Task.sleep(for: .milliseconds(480))
+            oldDeadline()
             #expect(input.window.orderOutCount == 0 && input.cover.orderOutCount == 0)
             #expect(input.host.wantsLauncherVisible && input.springboard.visible && !input.window.ignoresMouseEvents)
+            try immediateHide(input.host)
         }
         #expect(NSApp == nil)
     }
@@ -467,6 +475,12 @@ private func immediateHide(_ host: NativeHost) throws {
 }
 
 @MainActor
+private func pendingHideDeadline(_ host: NativeHost) throws -> @convention(block) () -> Void {
+    let task = try #require(host.value(forKey: "hideTask")) as AnyObject
+    return unsafeBitCast(task, to: (@convention(block) () -> Void).self)
+}
+
+@MainActor
 private func show(_ input: HideAnimationInput) throws {
     let selector = NSSelectorFromString("showLauncherOnScreen:")
     let method = try #require(class_getInstanceMethod(NativeHost.self, selector))
@@ -483,6 +497,7 @@ private final class HideAnimationInput {
     let backgroundView = HideAnimationSurface()
     let springboard = HideAnimationSpringboard()
     let icon = CALayer()
+    var olderDeadline: (@convention(block) () -> Void)?
     var transitionLayers: [HideAnimationSurfaceLayer] { [window.contentView.layer, cover.contentView.layer, view.backdrop, backgroundView.layer] }
     private(set) var cleanupWasHidden = true
     private(set) var searchClearCount = 0

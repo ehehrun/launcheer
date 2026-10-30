@@ -161,6 +161,15 @@ private enum LauncheerApp {
     private static var delegate: AppDelegate?
 
     static func main() {
+        if CommandLine.arguments.contains("--check-compatibility") {
+            var nativeError: NSError?
+            guard NativeInitializeDock(&nativeError) else {
+                FileHandle.standardError.write(Data("\(nativeError!.localizedDescription)\n".utf8))
+                exit(1)
+            }
+            print("Native Launchpad compatibility check passed on macOS \(ProcessInfo.processInfo.operatingSystemVersionString)")
+            return
+        }
         let application = NSApplication.shared
         application.setActivationPolicy(.regular)
         let host = AppDelegate()

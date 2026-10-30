@@ -1,11 +1,8 @@
 #import <AppKit/AppKit.h>
 #import <QuartzCore/QuartzCore.h>
 #import <objc/runtime.h>
-#import <dlfcn.h>
-#import <mach-o/loader.h>
-#import <uuid/uuid.h>
 #import <os/log.h>
-#import "NativeDockBuild.h"
+#import "NativeDock.h"
 #import "Host.h"
 #import "NativeBackdrop.h"
 #import "NativeLayout.h"
@@ -72,24 +69,6 @@ static id PlaceholderIcon(void) {
         CGColorSpaceRelease(color);
     });
     return image;
-}
-
-static void InitializeNativePreferences(void) {
-    Dl_info info;
-    IMP init = class_getMethodImplementation(NSClassFromString(@"Springboard"), @selector(init));
-    Verify(dladdr((const void *)init, &info) != 0, @"Cannot locate native Dock image");
-    const struct mach_header_64 *image = info.dli_fbase;
-    const struct load_command *command = (const void *)(image + 1);
-    const struct uuid_command *identity = NULL;
-    for (uint32_t i = 0; i < image->ncmds; i++) {
-        if (command->cmd == LC_UUID) { identity = (const void *)command; }
-        command = (const void *)((const char *)command + command->cmdsize);
-    }
-    const uuid_t expected = NATIVE_DOCK_UUID;
-    Verify(identity && memcmp(identity->uuid, expected, sizeof(uuid_t)) == 0,
-           @"This research build does not match the current Dock; rebuild its verified offsets");
-    void (*initialize)(void) = (void *)((const char *)image + NATIVE_DOCK_PREFS_WRAPPER_OFFSET);
-    initialize();
 }
 
 @interface NativeTextCell : NSTextFieldCell
@@ -577,10 +556,10 @@ static NSEvent *NavigationKeyEvent(unsigned short keyCode, BOOL pressed, BOOL re
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
     @try {
         CFTimeInterval started = CACurrentMediaTime();
-        if (!dlopen("/System/Library/CoreServices/Dock.app/Contents/MacOS/Dock", RTLD_LAZY | RTLD_LOCAL)) {
-            fprintf(stderr, "%s\n", dlerror()); exit(1);
+        NSError *nativeError = nil;
+        if (!NativeInitializeDock(&nativeError)) {
+            @throw [NSException exceptionWithName:@"NativeCompatibilityError" reason:nativeError.localizedDescription userInfo:@{NSUnderlyingErrorKey: nativeError}];
         }
-        InitializeNativePreferences();
         HostNativeTextInput();
         NSLog(@"Native initialization: %.1f ms", (CACurrentMediaTime() - started) * 1000);
         [self start];

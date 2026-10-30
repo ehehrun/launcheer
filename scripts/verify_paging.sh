@@ -12,7 +12,7 @@ if [[ "${1:-}" == "--interactions" ]]; then MODE="interactions"; shift; fi
 LOG="$ROOT/tmp/native-swipe-validation/$MODE.log"
 MARKER='PASS: swipe probe, 720 display callbacks'
 if [[ "$MODE" == "interactions" ]]; then MARKER='PASS: real native root reorder'; fi
-if [[ ! -f dist/Launcheer.app/Contents/Resources/NativeDockBuild.h ]]; then
+if [[ ! -x dist/Launcheer.app/Contents/MacOS/Launcheer ]]; then
   printf '%s\n' 'Build the native app first: ./scripts/build_app.sh' >&2
   exit 1
 fi
@@ -39,14 +39,15 @@ else:
     source = counters + source + '\n@interface NSObject' + fixture
 (work / 'Host.m').write_text(source)
 header = Path('Sources/NativeLaunchpad/include/Host.h').resolve()
-(work / 'module.modulemap').write_text('module NativeLaunchpad { header "' + str(header) + '" export * }\n')
+dock_header = Path('Sources/NativeLaunchpad/include/NativeDock.h').resolve()
+(work / 'module.modulemap').write_text('module NativeLaunchpad { header "' + str(header) + '" header "' + str(dock_header) + '" export * }\n')
 PY
 OBJECTS=()
 for source in "$WORK/Host.m" Sources/NativeLaunchpad/*.m; do
   if [[ "$source" == Sources/NativeLaunchpad/Host.m ]]; then continue; fi
   object="$WORK/$(basename "${source%.m}").o"
   xcrun clang -fobjc-arc -O2 -Wall -Wextra -Werror -Wno-unused-parameter \
-    -arch arm64 -mmacosx-version-min=26.2 -I Sources/NativeLaunchpad -I Sources/NativeLaunchpad/include \
+    -arch arm64 -mmacosx-version-min=26.0 -I Sources/NativeLaunchpad -I Sources/NativeLaunchpad/include \
     -c "$source" -o "$object"
   OBJECTS+=("$object")
 done
@@ -57,7 +58,7 @@ cp dist/Launcheer.app/Contents/Info.plist "$APP/Contents/"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier launcheer.kodify.vip.native-swipe-probe' "$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleName NativeLaunchpadSwipeProbe' "$APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c 'Set :CFBundleExecutable NativeLaunchpadSwipeProbe' "$APP/Contents/Info.plist"
-xcrun swiftc -O -parse-as-library -swift-version 6 -target arm64-apple-macosx26.2 \
+xcrun swiftc -O -parse-as-library -swift-version 6 -target arm64-apple-macosx26.0 \
   -module-cache-path "$ROOT/.build/ModuleCache" -I "$WORK" \
   Sources/Launcheer/*.swift "${OBJECTS[@]}" \
   -framework AppKit -framework QuartzCore -framework ImageIO -framework Carbon -framework ScreenCaptureKit \

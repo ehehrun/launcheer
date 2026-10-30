@@ -4,7 +4,7 @@
 
 Launcheer 为 Mac 带回熟悉的启动台体验：全屏应用网格、文件夹、触控板翻页和快速应用搜索。你可以用鼠标、键盘，或 macOS 已识别的手柄选择并启动应用。
 
-**当前已验证环境为 macOS 26.2、Apple Silicon。** 兼容性取决于具体 macOS 构建，系统更新后可能需要新版 Launcheer。
+**需要 macOS 26.0 或以上版本、Apple Silicon。** 支持的系统版本共用同一个安装包，启动时检查本机原生组件是否兼容。
 
 ## 功能一览
 
@@ -19,7 +19,9 @@ Launcheer 为 Mac 带回熟悉的启动台体验：全屏应用网格、文件�
 
 ## 快速开始
 
-请使用**与当前 macOS 匹配的 Apple Silicon 安装包**。打开 DMG，将完整的 `Launcheer.app` 复制到本地文件夹，例如“应用程序”。
+请使用 **Apple Silicon DMG 安装包**。打开后，将完整的 `Launcheer.app` 复制到本地文件夹，例如“应用程序”。
+
+安装包使用 ad-hoc 签名，未经过 Apple 公证。如果 macOS 阻止打开下载的应用，请先尝试打开，再前往**系统设置 → 隐私与安全性 → 仍要打开**，确认打开 Launcheer。详见 [Apple 官方说明](https://support.apple.com/zh-cn/102445)。
 
 1. 打开 `Launcheer.app`。
 2. 按 **Option + 空格**显示或收起启动台。
@@ -60,7 +62,7 @@ Launcheer 为 Mac 带回熟悉的启动台体验：全屏应用网格、文件�
 
 ### 支持所有 Mac 和 macOS 版本吗？
 
-当前已验证 **macOS 26.2、Apple Silicon**，尚未验证 Intel 和其他 macOS 构建。Launcheer 使用的原生系统组件可能随系统更新而变化。
+Launcheer 面向 **macOS 26.0 及以上的 Apple Silicon Mac**，不同系统版本共用同一个安装包。启动时检查并初始化本机原生组件，不再要求与构建机的 Dock 版本一致。同一份 GitHub 构建产物已在 **macOS 26.2 与 26.6.2** 通过无界面原生组件兼容检查；这不代表所有系统版本或完整界面交互均已验证。不支持 Intel。系统缺少所需组件时，会明确提示不兼容。
 
 ### 背景为什么与桌面不同？
 

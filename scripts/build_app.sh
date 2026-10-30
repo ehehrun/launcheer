@@ -5,10 +5,9 @@ CONFIGURATION="${CONFIGURATION:-release}"
 export CLANG_MODULE_CACHE_PATH="$ROOT/.build/ModuleCache"
 export SWIFTPM_MODULECACHE_OVERRIDE="$ROOT/.build/ModuleCache"
 cd "$ROOT"
-mkdir -p tmp/launchpad-extraction/root
-/usr/bin/python3 scripts/inspect_dock.py --output Sources/NativeLaunchpad/NativeDockBuild.h
 swift build -c "$CONFIGURATION" --arch arm64
 BIN_DIR="$(swift build -c "$CONFIGURATION" --arch arm64 --show-bin-path)"
+mkdir -p "$ROOT/tmp"
 WORK="$(mktemp -d "$ROOT/tmp/launcheer-build.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
 APP="$ROOT/dist/Launcheer.app"
@@ -20,7 +19,6 @@ cp "$BIN_DIR/Launcheer" "$STAGE/Contents/MacOS/Launcheer"
 cp Resources/Info.plist "$STAGE/Contents/Info.plist"
 cp Resources/Launcheer.icns "$RESOURCES/"
 cp LICENSE "$RESOURCES/"
-cp Sources/NativeLaunchpad/NativeDockBuild.h "$RESOURCES/"
 cp "$DOCK_RESOURCES"/ectl_search*.png "$RESOURCES/"
 for localization in "$DOCK_RESOURCES"/*.lproj; do
   if [[ -f "$localization/Localizable.strings" ]]; then

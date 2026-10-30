@@ -37,18 +37,21 @@ jobs:
           fi
           printf 'version=%s\nbuild=%s\n' "$version" "$build" >> "$GITHUB_OUTPUT"
 
-      - name: Check build environment and native Dock
+      - name: Check build environment
         run: |
           test "$(uname -m)" = arm64
           sw_vers
           xcrun swift --version
-          python3 scripts/inspect_dock.py --output Sources/NativeLaunchpad/NativeDockBuild.h
 
       - name: Run tests without opening windows
         run: env -u LAUNCHEER_UI_TESTS swift test -c release --no-parallel
 
       - name: Build app with ad-hoc signing
         run: ./scripts/build_app.sh
+
+      - name: Check packaged app without opening windows
+        shell: bash
+        run: ./dist/Launcheer.app/Contents/MacOS/Launcheer --check-compatibility 2>&1 | tee dist/compatibility-check.txt
 
       - name: Verify signature and package DMG
         id: package
@@ -57,8 +60,7 @@ jobs:
           BUILD: ${{ steps.version.outputs.build }}
         run: |
           codesign --verify --deep --strict --verbose=2 dist/Launcheer.app
-          system_build=$(sw_vers -buildVersion)
-          package="Launcheer-$VERSION-$BUILD-arm64-$system_build"
+          package="Launcheer-$VERSION-$BUILD-arm64"
           stage="$RUNNER_TEMP/launcheer-dmg"
           mkdir -p "$stage"
           ditto dist/Launcheer.app "$stage/Launcheer.app"
@@ -69,7 +71,7 @@ jobs:
             sw_vers
             uname -m
             xcrun swift --version
-            cat Sources/NativeLaunchpad/NativeDockBuild.h
+            cat dist/compatibility-check.txt
           } > "dist/$package-build-info.txt"
           cd dist
           shasum -a 256 "$package.dmg" > "$package.dmg.sha256"
@@ -119,12 +121,14 @@ jobs:
           cat > "$RUNNER_TEMP/release-notes.md" <<'NOTES'
           ## 安装
 
-          Apple Silicon 版本。打开 DMG，将 Launcheer.app 复制到本地文件夹后运行。
+          面向 macOS 26 及以上的 Apple Silicon Mac。打开 DMG，将 Launcheer.app 复制到本地文件夹后运行。
 
-          此安装包使用构建机的原生 Dock 组件，兼容性取决于具体 macOS 构建。
-          请先查看附件 build-info 中的系统版本与 Dock 信息；不保证兼容所有 macOS 26 版本。
+          同一个安装包在运行时初始化本机 Dock 原生组件，不绑定构建机的 Dock UUID 或函数偏移。
+          已验证的无界面原生组件兼容检查范围见仓库 README。
+          附件 build-info 记录此次构建环境与检查结果；其他系统版本和完整界面交互仍需实际验证。
 
           使用 ad-hoc 签名，未经过 Developer ID 签名和 Apple 公证。
+          首次下载如被 macOS 阻止，请先尝试打开，再到“系统设置 → 隐私与安全性 → 仍要打开”确认 Launcheer。
           `.dmg.sha256` 为安装包的 SHA-256 校验文件。
           NOTES
           gh release create "$RELEASE_TAG" \

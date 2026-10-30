@@ -4,7 +4,7 @@
 
 Launcheer brings the familiar Launchpad experience to your Mac: a full-screen app grid, folders, trackpad paging, and quick app search. Open apps with a mouse, keyboard, or a game controller recognized by macOS.
 
-**Currently validated on macOS 26.2 with Apple Silicon.** Compatibility depends on the macOS build; a system update may require a new Launcheer build.
+**Requires macOS 26.0 or later and Apple Silicon.** One installer is used across supported macOS versions; native component compatibility is checked at startup.
 
 ## Features
 
@@ -19,7 +19,9 @@ Launcheer brings the familiar Launchpad experience to your Mac: a full-screen ap
 
 ## Quick start
 
-Use an **Apple Silicon build matching your macOS version**. Open the DMG and copy the complete `Launcheer.app` to a local folder, such as Applications.
+Use the **Apple Silicon DMG**. Open it and copy the complete `Launcheer.app` to a local folder, such as Applications.
+
+Builds use ad-hoc signing and are not notarized. If macOS blocks the downloaded app, try opening it, then go to **System Settings → Privacy & Security → Open Anyway** and confirm **Open** for Launcheer. See [Apple’s instructions](https://support.apple.com/en-us/102445).
 
 1. Open `Launcheer.app`.
 2. Press **Option + Space** to show or hide the launcher.
@@ -60,7 +62,7 @@ No. It runs as a separate app. The main grid keeps the Dock visible; opening a f
 
 ### Does it support every Mac and macOS version?
 
-The current build is validated on **macOS 26.2 and Apple Silicon**. Intel and other macOS builds have not been validated. Launcheer uses native system components whose availability can change with system updates.
+Launcheer targets **macOS 26.0 or later on Apple Silicon**, using the same installer across versions. It checks and initializes the native components on your Mac rather than requiring the build machine’s Dock version. The same GitHub-built app has passed headless native-component compatibility checks on **macOS 26.2 and 26.6.2**. This does not verify every macOS version or replace interface testing. Intel is not supported. If required system components are unavailable, Launcheer reports an incompatibility.
 
 ### Why does the background differ from my desktop?
 
