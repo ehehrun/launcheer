@@ -1,6 +1,8 @@
 name: Swift · DMG
 
 on:
+  push:
+    tags: ['v*']
   workflow_dispatch:
 
 permissions:
