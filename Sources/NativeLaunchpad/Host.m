@@ -293,6 +293,7 @@ static NSEvent *NavigationKeyEvent(unsigned short keyCode, BOOL pressed, BOOL re
 @property(nonatomic, copy) dispatch_block_t hideTask;
 @property(nonatomic) NSUInteger hideGeneration;
 @property(nonatomic, strong) id dockHiddenGroup;
+@property(nonatomic) BOOL dockPresentationActive;
 @property(nonatomic) NSApplicationPresentationOptions savedPresentationOptions;
 - (void)syncGroupEditor;
 - (void)finishGroupEditing;
@@ -1170,18 +1171,19 @@ static NSEvent *NavigationKeyEvent(unsigned short keyCode, BOOL pressed, BOOL re
 }
 - (void)groupShownForItem:(id)item atIndex:(NSUInteger)index {
     if (!self.wantsLauncherVisible) { return; }
-    BOOL firstGroup = self.dockHiddenGroup == nil;
-    if (firstGroup) { self.savedPresentationOptions = NSApp.presentationOptions; }
     self.dockHiddenGroup = item;
-    if (firstGroup) {
-        NSApp.presentationOptions = (self.savedPresentationOptions & ~NSApplicationPresentationAutoHideDock) | NSApplicationPresentationHideDock;
-    }
+    // Native clientItem is weak; a missing item still requires restoring presentation.
+    if (self.dockPresentationActive) { return; }
+    self.savedPresentationOptions = NSApp.presentationOptions;
+    self.dockPresentationActive = YES;
+    NSApp.presentationOptions = (self.savedPresentationOptions & ~NSApplicationPresentationAutoHideDock) | NSApplicationPresentationHideDock;
 }
 - (void)groupHiddenForItem:(id)item atIndex:(NSUInteger)index {
     if (self.dockHiddenGroup == item) { [self restoreDockPresentation]; }
 }
 - (void)restoreDockPresentation {
-    if (!self.dockHiddenGroup) { return; }
+    if (!self.dockPresentationActive) { return; }
+    self.dockPresentationActive = NO;
     self.dockHiddenGroup = nil;
     NSApp.presentationOptions = self.savedPresentationOptions;
 }

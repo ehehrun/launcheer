@@ -67,16 +67,54 @@ struct NativeDockPresentationTests {
         }
     }
 
+    @Test func hidingRestoresPresentationAfterAGroupCallbackWithoutAnItem() throws {
+        let original: NSApplication.PresentationOptions = [.autoHideDock, .autoHideMenuBar]
+        try withApplication(options: original) { application in
+            let host = visibleHost()
+            let window = DockPresentationWindow()
+            host.setValue(window, forKey: "window")
+
+            try callback("groupShownForItem:atIndex:", host: host, group: nil)
+            host.hideLauncher()
+
+            #expect(window.orderOutCount == 1)
+            #expect(application.presentationOptions == original.rawValue)
+            host.setValue(true, forKey: "wantsLauncherVisible")
+            #expect(application.presentationOptions == original.rawValue)
+        }
+    }
+
+    @Test(arguments: [false, true])
+    func closingAfterAGroupCallbackWithoutAnItemPreservesTheOriginalPresentation(newOwner: Bool) throws {
+        let original: NSApplication.PresentationOptions = [.autoHideDock, .autoHideMenuBar]
+        try withApplication(options: original) { application in
+            let host = visibleHost()
+            try callback("groupShownForItem:atIndex:", host: host, group: nil)
+
+            if newOwner {
+                let group = NSObject()
+                try callback("groupShownForItem:atIndex:", host: host, group: group)
+                try callback("groupHiddenForItem:atIndex:", host: host, group: nil)
+                #expect(application.presentationOptions & NSApplication.PresentationOptions.hideDock.rawValue != 0)
+                try callback("groupHiddenForItem:atIndex:", host: host, group: group)
+            } else {
+                try callback("groupHiddenForItem:atIndex:", host: host, group: nil)
+            }
+
+            #expect(application.presentationOptions == original.rawValue)
+        }
+    }
+
     private func visibleHost() -> NativeHost {
         let host = NativeHost()
         host.setValue(true, forKey: "wantsLauncherVisible")
         return host
     }
 
-    private func callback(_ name: String, host: NativeHost, group: NSObject) throws {
+    private func callback(_ name: String, host: NativeHost, group: NSObject?) throws {
         let selector = NSSelectorFromString(name)
         let method = try #require(class_getInstanceMethod(NativeHost.self, selector))
-        typealias Callback = @convention(c) (AnyObject, Selector, AnyObject, UInt) -> Void
+        typealias Callback = @convention(c) (AnyObject, Selector, AnyObject?, UInt) -> Void
         let implementation = unsafeBitCast(method_getImplementation(method), to: Callback.self)
         implementation(host, selector, group, 0)
     }
