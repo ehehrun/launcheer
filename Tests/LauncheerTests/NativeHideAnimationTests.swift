@@ -403,6 +403,64 @@ struct NativeHideAnimationTests {
         #expect(input.window.orderOutCount == 1 && input.springboard.closeCount == 1)
         #expect(NSApp == nil)
     }
+
+    @Test func reopeningWithoutASearchKeepsTheRootPage() throws {
+        let restoreMotion = try interceptHideMotion(false, animationsDisabled: { true })
+        defer { restoreMotion() }
+        let input = HideAnimationInput()
+        input.view.pager.currentPageIndex = 3
+        var shownPages: [UInt] = []
+        input.window.onOrderFront = { shownPages.append(input.view.pager.currentPageIndex) }
+
+        for _ in 0..<2 {
+            input.host.hideLauncher()
+            try show(input)
+            #expect(input.view.pager.currentPageIndex == 3)
+        }
+
+        #expect(shownPages == [3, 3])
+        #expect(input.host.value(forKey: "searchPages") == nil)
+        #expect(NSApp == nil)
+    }
+
+    @Test func hidingAnActiveSearchRestoresItsOriginalRootPage() throws {
+        let restoreMotion = try interceptHideMotion(false, animationsDisabled: { true })
+        defer { restoreMotion() }
+        let input = HideAnimationInput()
+        input.view.pager.currentPageIndex = 3
+        input.host.perform(NSSelectorFromString("searchTextChanged:"), with: "/version")
+        #expect(input.springboard.filtering && input.view.pager.currentPageIndex == 0)
+        var shownPage: UInt?
+        input.window.onOrderFront = { shownPage = input.view.pager.currentPageIndex }
+
+        input.host.hideLauncher()
+        try show(input)
+
+        #expect(shownPage == 3 && input.view.pager.currentPageIndex == 3)
+        #expect(!input.springboard.filtering && input.host.value(forKey: "searchPages") == nil)
+        #expect(NSApp == nil)
+    }
+
+    @Test(arguments: [1, 2], [false, true])
+    func reloadingFewerRootPagesKeepsTheNearestRemainingPage(pageCount: Int, searching: Bool) throws {
+        let input = HideAnimationInput()
+        input.host.verifying = true
+        input.view.downLayer = nil
+        input.springboard.dragging = false
+        input.view.pager.currentPageIndex = 3
+        if searching { input.host.perform(NSSelectorFromString("searchTextChanged:"), with: "/version") }
+        let items = (0..<((pageCount - 1) * 35 + 1)).map {
+            URL(fileURLWithPath: "/Applications/In Memory Page Fixture \($0).app")
+        }
+
+        input.host.reloadItems(items)
+
+        #expect(input.host.value(forKey: "pendingItems") == nil && input.host.items == items)
+        #expect(input.view.pager.pages.count == pageCount)
+        #expect(input.view.pager.currentPageIndex == UInt(pageCount - 1))
+        #expect(input.host.value(forKey: "searchPages") == nil)
+        #expect(NSApp == nil)
+    }
 }
 
 @MainActor
@@ -529,12 +587,20 @@ private final class HideAnimationInput {
             guard let self else { return }
             searchClearCount += 1
             cleanupWasHidden = cleanupWasHidden && window.orderOutCount > 0 && cover.orderOutCount > 0
+            host.perform(NSSelectorFromString("searchTextCleared"))
+        }
+        springboard.onInvalidate = { [weak self] in
+            guard let self else { return }
+            let pages = host.value(forKey: "searchPages") ?? host.value(forKey: "pages")
+            view.pager.pages = pages as! [NativePage]
         }
         host.setValue(window, forKey: "window")
         host.setValue(cover, forKey: "menuBarCoverWindow")
         host.setValue(view, forKey: "view")
         host.setValue(backgroundView, forKey: "backgroundView")
         host.setValue(springboard, forKey: "springboard")
+        host.setValue(springboard.layer.searchTextInputLayer, forKey: "search")
+        host.setValue(view.pager.pages, forKey: "pages")
         host.setValue(128, forKey: "iconPixelSize")
         host.setValue(true, forKey: "wantsLauncherVisible")
     }
@@ -552,6 +618,8 @@ private final class HideAnimationHost: NativeHost {
     func updateMenuBarCover(_ screen: NSObject) {}
     @objc(prepareDesktopForScreen:)
     func prepareDesktop(_ screen: NSObject) {}
+    @objc(prepareIconsForItems:pixelSize:)
+    func prepareIcons(_ items: [URL], pixelSize: UInt) {}
 }
 
 @MainActor
@@ -615,7 +683,12 @@ private final class HideAnimationView: NSObject {
 
 @MainActor
 private final class HideAnimationPager: NSObject {
-    @objc var currentPageIndex: UInt = 1
+    @objc var pages = (0..<5).map { _ in NativePage(items: []) }
+    fileprivate var pageIndex: UInt = 1
+    @objc var currentPageIndex: UInt {
+        get { pageIndex }
+        set { if newValue < UInt(pages.count) { pageIndex = newValue } }
+    }
     @objc func currentPage() -> NSObject? { nil }
     @objc func setEditing(_ editing: Bool) {}
     @objc func setDeleting(_ deleting: Bool) {}
@@ -627,13 +700,32 @@ private final class HideAnimationSpringboard: NSObject {
     @objc var pager: HideAnimationPager?
     @objc var visible = true
     @objc var dragging = true
+    @objc var filtering = false
+    @objc var eventHandler: NSObject? { nil }
     private(set) var completedDragCount = 0
     private(set) var closeCount = 0
+    private var unfilteredPage: UInt = 0
     var onClose: (() -> Void)?
+    var onInvalidate: (() -> Void)?
     @objc func cancelDrag(_ animated: Bool) {
         if dragging { completedDragCount += 1; dragging = false }
     }
     @objc func setGroupShown(_ shown: Bool) { if !shown { closeCount += 1; onClose?() } }
+    @objc(filterUsingItems:)
+    func filter(_ items: [URL]) {
+        if !filtering { unfilteredPage = pager!.currentPageIndex }
+        filtering = true
+        invalidate()
+    }
+    @objc func clearFilteredItems() {
+        filtering = false
+        invalidate()
+        pager!.currentPageIndex = unfilteredPage
+    }
+    @objc func invalidate() {
+        onInvalidate?()
+        pager!.pageIndex = 0
+    }
 }
 
 private final class HideAnimationSearch: NSObject {

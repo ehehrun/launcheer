@@ -1036,15 +1036,24 @@ static NSEvent *NavigationKeyEvent(unsigned short keyCode, BOOL pressed, BOOL re
     NSError *error = nil;
     NativeLayout *layout = [[NativeLayout alloc] initWithApps:retained fileURL:self.verifying ? nil : NativeLayout.fileURL error:&error];
     if (!layout) { [[NSAlert alertWithError:error] runModal]; return; }
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    [CATransaction setAnimationDuration:0];
+    if (self.searchPages) {
+        self.searchPages = nil;
+        [self.springboard clearFilteredItems];
+    }
+    NSUInteger page = [[self.springboard pager] currentPageIndex];
     self.items = retained;
     NSMutableDictionary *icons = [NSMutableDictionary dictionary];
     for (NSURL *url in retained) { if (self.icons[url]) { icons[url] = self.icons[url]; } }
     self.icons = icons;
     self.layout = layout;
     self.pages = layout.pages;
-    self.searchPages = nil;
     [[self.springboard.layer searchTextInputLayer] setStringValue:@""];
     [self.springboard invalidate];
+    [[self.springboard pager] setCurrentPageIndex:MIN(page, self.pages.count - 1)];
+    [CATransaction commit];
     [self prepareIconsForItems:retained pixelSize:self.iconPixelSize];
 }
 - (void)applyPendingItems {
@@ -1388,8 +1397,10 @@ static NSEvent *NavigationKeyEvent(unsigned short keyCode, BOOL pressed, BOOL re
     self.versionLabel.hidden = !version;
     if ([query isEqualToString:@"/settings"]) { [self showSettings:self]; return; }
     if (query.length == 0) {
-        self.searchPages = nil;
-        [self.springboard clearFilteredItems];
+        if (self.searchPages) {
+            self.searchPages = nil;
+            [self.springboard clearFilteredItems];
+        }
     }
     else if (version) {
         NSDictionary *info = NSBundle.mainBundle.infoDictionary;
