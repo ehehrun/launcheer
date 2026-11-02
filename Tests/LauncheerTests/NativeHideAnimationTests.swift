@@ -15,8 +15,8 @@ struct NativeHideAnimationTests {
         let root = input.window.contentView.layer
         let model = (root.transform, root.frame, root.position)
         let iconModel = (input.icon.transform, input.icon.frame, input.icon.position)
-        let backgrounds = [input.view.backdrop, input.backgroundView.layer]
-        let backgroundModels = backgrounds.map { ($0.transform, $0.frame, $0.position) }
+        let backdrop = input.view.backdrop
+        let backdropModel = (backdrop.transform, backdrop.frame, backdrop.position)
         if reduceMotion {
             root.filters = [try transitionFilter(name: "launcheerDissolve", radius: 0)]
             let previous = CABasicAnimation(keyPath: "filters.launcheerDissolve.inputRadius")
@@ -42,11 +42,10 @@ struct NativeHideAnimationTests {
             #expect(blur.duration == duration && (blur.fromValue as? NSNumber)?.doubleValue == 0 && (blur.toValue as? NSNumber)?.doubleValue == 12)
             #expect((namedTransitionFilter(root)?.value(forKey: "inputRadius") as? NSNumber)?.doubleValue == 0)
         }
-        for (background, state) in zip(backgrounds, backgroundModels) {
-            for key in ["launcheer.hide", "launcheer.show", "launcheer.dissolve"] { #expect(background.animation(forKey: key) == nil) }
-            #expect(CATransform3DEqualToTransform(background.transform, state.0) && background.frame == state.1 && background.position == state.2 && background.opacity == 1)
-        }
+        for key in ["launcheer.hide", "launcheer.show", "launcheer.dissolve"] { #expect(backdrop.animation(forKey: key) == nil) }
+        #expect(CATransform3DEqualToTransform(backdrop.transform, backdropModel.0) && backdrop.frame == backdropModel.1 && backdrop.position == backdropModel.2 && backdrop.opacity == 1)
         #expect(CATransform3DEqualToTransform(root.transform, model.0) && root.frame == model.1 && root.position == model.2 && root.opacity == 1)
+        #expect(root.backgroundColor == input.backgroundColor && root.backgroundColor?.alpha == 1)
         #expect(input.cover.contentView.layer.opacity == 1 && input.cover.contentView.layer.animation(forKey: "launcheer.dissolve") == nil)
         #expect(input.icon.frame == iconModel.1 && input.icon.position == iconModel.2 && CATransform3DEqualToTransform(input.icon.transform, iconModel.0))
         #expect(input.view.layer.animation(forKey: "launcheer.hide") == nil && input.icon.animation(forKey: "launcheer.hide") == nil)
@@ -56,6 +55,7 @@ struct NativeHideAnimationTests {
         #expect(!input.springboard.dragging && input.springboard.completedDragCount == 1)
         try immediateHide(input.host)
         #expect(namedTransitionFilter(root) == nil && root.animation(forKey: "launcheer.dissolve") == nil)
+        #expect(root.backgroundColor == input.backgroundColor && root.opacity == 1)
         #expect(NSApp == nil)
     }
 
@@ -67,8 +67,8 @@ struct NativeHideAnimationTests {
         input.host.setValue(false, forKey: "wantsLauncherVisible")
         let root = input.window.contentView.layer
         let cover = input.cover.contentView.layer
-        let backgrounds = [input.view.backdrop, input.backgroundView.layer]
-        let backgroundModels = backgrounds.map { ($0.transform, $0.frame, $0.position) }
+        let backdrop = input.view.backdrop
+        let backdropModel = (backdrop.transform, backdrop.frame, backdrop.position)
         root.opacity = 0.84
         cover.opacity = 0.58
         let model = (root.transform, root.frame, root.position)
@@ -100,11 +100,10 @@ struct NativeHideAnimationTests {
             #expect(blur.duration == duration && (blur.fromValue as? NSNumber)?.doubleValue == 12 && (blur.toValue as? NSNumber)?.doubleValue == 0)
             #expect((namedTransitionFilter(root)?.value(forKey: "inputRadius") as? NSNumber)?.doubleValue == 0)
         }
-        for (background, state) in zip(backgrounds, backgroundModels) {
-            for key in ["launcheer.hide", "launcheer.show", "launcheer.dissolve"] { #expect(background.animation(forKey: key) == nil) }
-            #expect(CATransform3DEqualToTransform(background.transform, state.0) && background.frame == state.1 && background.position == state.2 && background.opacity == 1)
-        }
+        for key in ["launcheer.hide", "launcheer.show", "launcheer.dissolve"] { #expect(backdrop.animation(forKey: key) == nil) }
+        #expect(CATransform3DEqualToTransform(backdrop.transform, backdropModel.0) && backdrop.frame == backdropModel.1 && backdrop.position == backdropModel.2 && backdrop.opacity == 1)
         #expect(CATransform3DEqualToTransform(root.transform, model.0) && root.frame == model.1 && root.position == model.2 && root.opacity == 0.84 && cover.opacity == 0.58)
+        #expect(root.backgroundColor == input.backgroundColor && root.backgroundColor?.alpha == 1)
         #expect(input.icon.frame == iconModel.1 && input.icon.position == iconModel.2 && CATransform3DEqualToTransform(input.icon.transform, iconModel.0))
         #expect(input.view.layer.animation(forKey: "launcheer.show") == nil && input.icon.animation(forKey: "launcheer.show") == nil)
         try immediateHide(input.host)
@@ -112,6 +111,7 @@ struct NativeHideAnimationTests {
             for key in ["launcheer.show", "launcheer.hide", "launcheer.dissolve"] { #expect(layer.animation(forKey: key) == nil) }
         }
         #expect(namedTransitionFilter(root) == nil)
+        #expect(root.backgroundColor == input.backgroundColor && root.opacity == 0.84)
         #expect(NSApp == nil)
     }
 
@@ -135,11 +135,11 @@ struct NativeHideAnimationTests {
         }
         let hideBlur = try visibilityComponent(visibilityAnimation(root, key: "launcheer.dissolve"), keyPath: "filters.launcheerDissolve.inputRadius")
         #expect((hideBlur.fromValue as? NSNumber)?.doubleValue == 4.5 && (hideBlur.toValue as? NSNumber)?.doubleValue == 12)
+        #expect(root.backgroundColor == input.backgroundColor && root.opacity == 1)
         for layer in input.transitionLayers { #expect(layer.animation(forKey: "launcheer.show") == nil) }
         root.sampledPresentation = try sampledVisibility(opacity: 0.14, blurRadius: 8.25)
         cover.sampledPresentation = try sampledVisibility(opacity: 0.38)
         input.view.backdrop.isHidden = true
-        input.backgroundView.layer.isHidden = false
 
         try show(input)
 
@@ -151,10 +151,9 @@ struct NativeHideAnimationTests {
         #expect((showBlur.fromValue as? NSNumber)?.doubleValue == 8.25 && (showBlur.toValue as? NSNumber)?.doubleValue == 0)
         #expect((namedTransitionFilter(root)?.value(forKey: "inputRadius") as? NSNumber)?.doubleValue == 0)
         for layer in input.transitionLayers { #expect(layer.animation(forKey: "launcheer.hide") == nil) }
-        for background in [input.view.backdrop, input.backgroundView.layer] {
-            for key in ["launcheer.show", "launcheer.hide", "launcheer.dissolve"] { #expect(background.animation(forKey: key) == nil) }
-        }
+        for key in ["launcheer.show", "launcheer.hide", "launcheer.dissolve"] { #expect(input.view.backdrop.animation(forKey: key) == nil) }
         #expect(CATransform3DEqualToTransform(root.transform, model.0) && root.opacity == 1 && cover.opacity == 1)
+        #expect(root.backgroundColor == input.backgroundColor && root.backgroundColor?.alpha == 1)
         #expect(input.icon.frame == model.1 && input.icon.position == model.2)
         try immediateHide(input.host)
         #expect(NSApp == nil)
@@ -182,6 +181,7 @@ struct NativeHideAnimationTests {
             #expect((blur.fromValue as? NSNumber)?.doubleValue == 12)
             #expect((blur.toValue as? NSNumber)?.doubleValue == (visible ? 0 : 12))
             for layer in input.transitionLayers { #expect(layer.animation(forKey: previous) == nil) }
+            #expect(root.backgroundColor == input.backgroundColor && root.opacity == 1)
         }
         #expect(root.opacity == 1 && cover.opacity == 1)
         try immediateHide(input.host)
@@ -214,6 +214,7 @@ struct NativeHideAnimationTests {
         #expect(namedTransitionFilter(root) == nil && root.animation(forKey: "launcheer.dissolve") == nil)
         let filters = try #require(root.filters as? [NSObject])
         #expect(filters.count == 1)
+        #expect(root.backgroundColor == input.backgroundColor && root.opacity == 1)
         #expect(filters.first?.value(forKey: "name") as? String == "existingBlur")
         #expect((filters.first?.value(forKey: "inputRadius") as? NSNumber)?.doubleValue == 3)
         if !interruptedByHide { try immediateHide(input.host) }
@@ -250,6 +251,7 @@ struct NativeHideAnimationTests {
         }
         #expect(CATransform3DEqualToTransform(layers[0].transform, model))
         #expect(namedTransitionFilter(layers[0]) == nil)
+        #expect(layers[0].backgroundColor == input.backgroundColor && layers[0].backgroundColor?.alpha == 1)
         try await Task.sleep(for: .milliseconds(480))
         #expect(input.window.orderOutCount == 1 && input.springboard.closeCount == 1)
         #expect(NSApp == nil)
@@ -282,6 +284,7 @@ struct NativeHideAnimationTests {
         }
         #expect(input.host.value(forKey: "hideTask") == nil)
         #expect(namedTransitionFilter(input.window.contentView.layer) == nil)
+        #expect(input.window.contentView.layer.backgroundColor == input.backgroundColor)
         #expect(input.host.wantsLauncherVisible == showing)
         #expect(input.window.orderOutCount == (showing ? 0 : 1))
         #expect(showing ? !input.window.ignoresMouseEvents : input.cleanupWasHidden)
@@ -305,6 +308,7 @@ struct NativeHideAnimationTests {
         #expect(input.springboard.closeCount == 1 && input.searchClearCount == 1 && input.cleanupWasHidden)
         #expect(!input.springboard.visible && input.springboard.completedDragCount == 1)
         #expect(namedTransitionFilter(input.window.contentView.layer) == nil && input.window.contentView.layer.animation(forKey: "launcheer.dissolve") == nil)
+        #expect(input.window.contentView.layer.backgroundColor == input.backgroundColor && input.window.contentView.layer.opacity == 1)
         for layer in input.transitionLayers { #expect(layer.animation(forKey: "launcheer.hide") == nil) }
         #expect(input.host.value(forKey: "hideTask") == nil)
         #expect(NSApp == nil)
@@ -363,6 +367,7 @@ struct NativeHideAnimationTests {
             #expect(input.host.wantsLauncherVisible && input.springboard.visible && !input.window.ignoresMouseEvents)
             try immediateHide(input.host)
         }
+        #expect(input.window.contentView.layer.backgroundColor == input.backgroundColor && input.window.contentView.layer.opacity == 1)
         #expect(NSApp == nil)
     }
 
@@ -396,6 +401,7 @@ struct NativeHideAnimationTests {
         #expect(input.cleanupWasHidden && !input.springboard.visible && input.springboard.completedDragCount == 1)
         #expect(input.host.value(forKey: "hideTask") == nil)
         #expect(namedTransitionFilter(input.window.contentView.layer) == nil)
+        #expect(input.window.contentView.layer.backgroundColor == input.backgroundColor && input.window.contentView.layer.opacity == 1)
         for layer in input.transitionLayers {
             #expect(layer.animation(forKey: "launcheer.show") == nil && layer.animation(forKey: "launcheer.hide") == nil && layer.animation(forKey: "launcheer.dissolve") == nil)
         }
@@ -552,27 +558,23 @@ private final class HideAnimationInput {
     let window = HideAnimationWindow()
     let cover = HideAnimationWindow()
     let view = HideAnimationView()
-    let backgroundView = HideAnimationSurface()
+    let backgroundColor = CGColor(gray: 0.1, alpha: 1)
     let springboard = HideAnimationSpringboard()
     let icon = CALayer()
     var olderDeadline: (@convention(block) () -> Void)?
-    var transitionLayers: [HideAnimationSurfaceLayer] { [window.contentView.layer, cover.contentView.layer, view.backdrop, backgroundView.layer] }
+    var transitionLayers: [HideAnimationSurfaceLayer] { [window.contentView.layer, cover.contentView.layer, view.backdrop] }
     private(set) var cleanupWasHidden = true
     private(set) var searchClearCount = 0
 
     init(anchor: CGFloat = 0.5) {
         let layer = window.contentView.layer
+        layer.backgroundColor = backgroundColor
         layer.bounds = CGRect(x: 0, y: 0, width: 800, height: 600)
         layer.anchorPoint = CGPoint(x: anchor, y: anchor)
         layer.transform = CATransform3DMakeTranslation(7, -3, 0)
-        for background in [view.backdrop, backgroundView.layer] {
-            background.bounds = layer.bounds
-            background.anchorPoint = layer.anchorPoint
-        }
+        view.backdrop.bounds = layer.bounds
+        view.backdrop.anchorPoint = layer.anchorPoint
         view.backdrop.transform = CATransform3DMakeTranslation(7, -3, 0)
-        backgroundView.layer.transform = CATransform3DMakeTranslation(-4, 9, 0)
-        backgroundView.layer.isHidden = true
-        layer.addSublayer(backgroundView.layer)
         layer.addSublayer(view.layer)
         view.layer.addSublayer(view.backdrop)
         view.layer.addSublayer(springboard.layer)
@@ -597,7 +599,6 @@ private final class HideAnimationInput {
         host.setValue(window, forKey: "window")
         host.setValue(cover, forKey: "menuBarCoverWindow")
         host.setValue(view, forKey: "view")
-        host.setValue(backgroundView, forKey: "backgroundView")
         host.setValue(springboard, forKey: "springboard")
         host.setValue(springboard.layer.searchTextInputLayer, forKey: "search")
         host.setValue(view.pager.pages, forKey: "pages")

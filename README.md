@@ -6,6 +6,10 @@ Launcheer brings the familiar Launchpad experience to your Mac: a full-screen ap
 
 **Requires macOS 26.0 or later and Apple Silicon.** One installer is used across supported macOS versions; native component compatibility is checked at startup.
 
+![Launcheer app grid](assets/launcheer-preview.png)
+
+*Launcheer app grid.*
+
 ## Features
 
 | Feature | What you can do |
@@ -49,7 +53,7 @@ On the main grid, moving right past the last app selects the first app on the ne
 
 ## Settings
 
-- **Background:** choose an image or select **Follow Desktop**. The change applies immediately. If macOS restricts access to the wallpaper, use **Allow Reading Current Wallpaper…** in Launcheer’s application or Dock menu to select that image.
+- **Background:** choose an image or select **Follow Desktop**. The change applies immediately. **Transparent Background** is on by default, allowing windows behind the launcher to show through; turn it off for an opaque backdrop. macOS **Reduce Transparency** keeps the background opaque. If macOS restricts access to the wallpaper, use **Allow Reading Current Wallpaper…** in Launcheer’s application or Dock menu to select that image.
 - **Transitions:** enable **Disable Transitions** for immediate showing and hiding.
 - **App icon:** choose or restore Launcheer’s Dock icon. This changes the running app’s Dock appearance, not its icon in Finder.
 - **Global app search:** enable it, then press **Option + Shift + Space**. Record a custom shortcut in settings; it must include Command, Option, or Control. Use ↑ / ↓ to select, Return to launch, and Esc to dismiss.

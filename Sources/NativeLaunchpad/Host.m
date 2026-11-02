@@ -269,7 +269,6 @@ static NSEvent *NavigationKeyEvent(unsigned short keyCode, BOOL pressed, BOOL re
 @interface NativeHost () <NSTextFieldDelegate>
 @property(nonatomic, strong) NSWindow *window;
 @property(nonatomic, strong) NSWindow *menuBarCoverWindow;
-@property(nonatomic, strong) NSVisualEffectView *backgroundView;
 @property(nonatomic, strong) NativeView *view;
 @property(nonatomic, strong) NSTextField *search;
 @property(nonatomic, strong) NSTextField *versionLabel;
@@ -603,8 +602,6 @@ static NSEvent *NavigationKeyEvent(unsigned short keyCode, BOOL pressed, BOOL re
     self.view.springboard = self.springboard;
     self.view.wantsLayer = YES;
     NativeBackdrop *backdrop = [NativeBackdrop layer];
-    // Only the backdrop participates in background opacity; native icons stay in their own layer.
-    backdrop.opacity = 0.08f;
     self.view.backdrop = backdrop;
     [self.view.layer addSublayer:backdrop];
     [self.view.layer addSublayer:[self.springboard layer]];
@@ -624,17 +621,9 @@ static NSEvent *NavigationKeyEvent(unsigned short keyCode, BOOL pressed, BOOL re
     self.window.title = @"Launcheer";
     NSView *content = [[NSView alloc] initWithFrame:self.view.frame];
     content.wantsLayer = YES;
-    content.appearance = [NSAppearance appearanceNamed:NSAppearanceNameVibrantDark];
-    NSVisualEffectView *effect = [[NSVisualEffectView alloc] initWithFrame:self.view.frame];
-    effect.wantsLayer = YES;
-    effect.material = NSVisualEffectMaterialHUDWindow;
-    effect.blendingMode = NSVisualEffectBlendingModeBehindWindow;
-    effect.state = NSVisualEffectStateActive;
-    effect.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    self.backgroundView = effect;
+    content.layer.backgroundColor = NSColor.blackColor.CGColor;
+    content.appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
     self.view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    // Keep native icon layers outside the translucent material's view hierarchy.
-    [content addSubview:effect];
     [content addSubview:self.view];
     self.window.contentView = content;
     self.window.collectionBehavior = NSWindowCollectionBehaviorCanJoinAllSpaces | NSWindowCollectionBehaviorFullScreenAuxiliary;
@@ -668,6 +657,7 @@ static NSEvent *NavigationKeyEvent(unsigned short keyCode, BOOL pressed, BOOL re
     [NSApp sendAction:NSSelectorFromString(@"openSettings:") to:NSApp.delegate from:sender];
 }
 - (void)refreshBackground {
+    [self updateBackgroundMaterial:nil];
     NSScreen *screen = self.window.screen ?: NSScreen.mainScreen;
     [self prepareDesktopForScreen:screen];
 }
@@ -704,14 +694,16 @@ static NSEvent *NavigationKeyEvent(unsigned short keyCode, BOOL pressed, BOOL re
     else { [self hideLauncher]; }
 }
 - (void)updateBackgroundMaterial:(NSNotification *)notification {
-    BOOL hasImage = self.view.backdrop.hasImage;
-    CGFloat opacity = NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceTransparency ? 1 : 0.75;
+    NSNumber *transparency = [NSUserDefaults.standardUserDefaults objectForKey:@"background.transparencyEnabled"];
+    BOOL translucent = (!transparency || transparency.boolValue) && !NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceTransparency;
+    CGColorRef fill = CGColorCreateCopyWithAlpha(self.view.backdrop.backgroundColor, translucent ? 0 : 1);
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    self.backgroundView.hidden = hasImage;
-    self.backgroundView.alphaValue = opacity;
-    self.view.backdrop.opacity = hasImage ? opacity : 0.08;
+    self.window.contentView.layer.backgroundColor = fill;
+    self.view.backdrop.opacity = translucent ? 0.75 : 1;
+    self.menuBarCoverWindow.contentView.layer.sublayers.firstObject.opacity = self.view.backdrop.opacity;
     [CATransaction commit];
+    CGColorRelease(fill);
 }
 - (void)refreshDesktop:(NSNotification *)notification {
     if (!self.wantsLauncherVisible) { return; }
@@ -981,7 +973,6 @@ static NSEvent *NavigationKeyEvent(unsigned short keyCode, BOOL pressed, BOOL re
     RemoveVisibilityAnimations(self.window.contentView.layer);
     RemoveVisibilityAnimations(self.menuBarCoverWindow.contentView.layer);
     RemoveVisibilityAnimations(self.view.backdrop);
-    RemoveVisibilityAnimations(self.backgroundView.layer);
     [self removeDissolveFilter];
 }
 - (void)hideLauncherImmediately {

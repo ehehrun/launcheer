@@ -11,6 +11,7 @@ final class SettingsWindowController: NSWindowController {
     private var backgroundPreview: NSImageView!
     private var iconPreview: NSImageView!
     private var backgroundLabel: NSTextField!
+    private var transparencyCheckbox: NSButton!
     private var animationCheckbox: NSButton!
     private var searchCheckbox: NSButton!
     private var shortcutRecorder: SettingsShortcutRecorder!
@@ -31,7 +32,7 @@ final class SettingsWindowController: NSWindowController {
     required init?(coder: NSCoder) { fatalError() }
 
     private func buildWindow() {
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 590, height: 680),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 590, height: 710),
                               styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
         window.title = "Launcheer 设置"
         window.isReleasedWhenClosed = false
@@ -52,7 +53,9 @@ final class SettingsWindowController: NSWindowController {
         backgroundLabel = NSTextField(labelWithString: "")
         let backgroundButton = button("选择图片…", action: #selector(chooseBackground(_:)))
         let desktopButton = button("跟随桌面", action: #selector(followDesktop(_:)))
-        let background = column([heading("背景"), row([backgroundPreview, column([backgroundLabel, row([backgroundButton, desktopButton])])])])
+        transparencyCheckbox = NSButton(checkboxWithTitle: "透明背景（可透出后方应用窗口）", target: self, action: #selector(changeTransparency(_:)))
+        transparencyCheckbox.toolTip = "开启时允许透出后方应用，关闭时完全遮住。系统开启“降低透明度”时，背景保持不透明。"
+        let background = column([heading("背景"), row([backgroundPreview, column([backgroundLabel, row([backgroundButton, desktopButton])])]), transparencyCheckbox])
 
         animationCheckbox = NSButton(checkboxWithTitle: "关闭过渡动画", target: self, action: #selector(changeAnimations(_:)))
         iconPreview = preview(width: 64, height: 64)
@@ -125,6 +128,7 @@ final class SettingsWindowController: NSWindowController {
 
     private func refreshControls(reloadImages: Bool = true) {
         let defaults = UserDefaults.standard
+        transparencyCheckbox.state = (defaults.object(forKey: "background.transparencyEnabled") as? Bool ?? true) ? .on : .off
         animationCheckbox.state = defaults.bool(forKey: "animations.disabled") ? .on : .off
         searchCheckbox.state = defaults.bool(forKey: "search.isEnabled") ? .on : .off
         shortcutRecorder.cancelRecording()
@@ -150,6 +154,11 @@ final class SettingsWindowController: NSWindowController {
                 }
             }
         }
+    }
+
+    @objc private func changeTransparency(_ sender: NSButton) {
+        UserDefaults.standard.set(sender.state == .on, forKey: "background.transparencyEnabled")
+        onBackgroundChange()
     }
 
     @objc private func changeAnimations(_ sender: NSButton) {

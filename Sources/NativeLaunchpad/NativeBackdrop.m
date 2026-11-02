@@ -115,8 +115,12 @@ static NSURL *CacheURLForImageURL(NSURL *url, NSURL *directory) {
     [CATransaction setDisableActions:YES];
     layer.masksToBounds = YES;
     layer.contentsScale = self.rasterizationScale;
+    CGColorRef fill = CGColorCreateCopyWithAlpha(self.backgroundColor, 1);
+    layer.backgroundColor = fill;
+    CGColorRelease(fill);
     CALayer *slice = [CALayer layer];
     slice.frame = CGRectMake(CGRectGetMinX(layer.bounds), CGRectGetMaxY(layer.bounds) - height, source.size.width, height);
+    slice.opacity = self.opacity;
     slice.backgroundColor = self.backgroundColor;
     slice.filters = self.filters;
     slice.shouldRasterize = YES;

@@ -21,7 +21,8 @@ struct NativeMenuBarCoverTests {
         #expect(cover.masksToBounds)
         #expect(cover.sublayers?.count == 1)
         #expect(cover.opacity == 1)
-        #expect(slice.opacity == 1)
+        #expect(cover.backgroundColor?.alpha == 1)
+        #expect(slice.opacity == source.opacity)
         #expect(copied.opacity == 1)
         #expect(color.alpha == 1)
         #expect(slice.frame == CGRect(x: 0, y: -36, width: 1512, height: height + 36))
@@ -73,7 +74,8 @@ struct NativeMenuBarCoverTests {
         let copiedColor = try #require(slice.backgroundColor)
         #expect(cover.sublayers?.count == 1)
         #expect(cover.opacity == 1)
-        #expect(slice.opacity == 1)
+        #expect(cover.backgroundColor?.alpha == 1)
+        #expect(slice.opacity == source.opacity)
         #expect(copied.opacity == 1)
         #expect(copiedColor.alpha == 1)
         #expect(copied.contents == nil)
@@ -81,12 +83,34 @@ struct NativeMenuBarCoverTests {
         #expect(slice.rasterizationScale == 2)
     }
 
+    @Test(arguments: [Float(0.75), 1])
+    func aTranslucentSourceKeepsTheCoverRootOpaque(opacity: Float) throws {
+        let (source, _, _) = try makeBackdrop(size: CGSize(width: 1512, height: 982))
+        let color = CGColor(red: 0.15, green: 0.3, blue: 0.5, alpha: 0.2)
+        source.backgroundColor = color
+        source.opacity = opacity
+        let cover = CALayer()
+        cover.bounds = CGRect(x: 0, y: 0, width: 1512, height: 38)
+
+        try updateCover(cover, from: source)
+
+        let slice = try #require(cover.sublayers?.first)
+        let fill = try #require(cover.backgroundColor)
+        let sliceColor = try #require(slice.backgroundColor)
+        let sourceColor = try #require(source.backgroundColor)
+        let expected = CGColor(red: 0.15, green: 0.3, blue: 0.5, alpha: 1)
+        #expect(fill.alpha == 1 && CFEqual(fill, expected))
+        #expect(cover.opacity == 1 && slice.opacity == opacity)
+        #expect(CFEqual(sliceColor, color))
+        #expect(CFEqual(sourceColor, color) && source.opacity == opacity)
+    }
+
     private func makeBackdrop(size: CGSize) throws -> (CALayer, CALayer, CGImage) {
         let type = try #require(NSClassFromString("NativeBackdrop") as? CALayer.Type)
         let source = type.init()
         source.bounds = CGRect(origin: .zero, size: size)
         source.rasterizationScale = 2
-        // The main tint is translucent; the top cover must still hide system icons.
+        // Only the slice follows the main tint; the cover root stays opaque.
         source.opacity = 0.08
         source.backgroundColor = CGColor(gray: 0.1, alpha: 1)
         source.setValue(NSValue(size: NSSize(width: 1600, height: 900)), forKey: "imageSize")
