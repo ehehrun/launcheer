@@ -1,6 +1,7 @@
 import AppKit
 import Carbon.HIToolbox
 import ImageIO
+import NativeLaunchpad
 import UniformTypeIdentifiers
 
 @MainActor
@@ -8,6 +9,7 @@ final class SettingsWindowController: NSWindowController {
     private let onBackgroundChange: () -> Void
     private let onAnimationsChange: () -> Void
     private let onSearchChange: (Bool, UInt32, UInt32) throws -> Void
+    private var autoArrangeView: AutoArrangeSettingsView!
     private var backgroundPreview: NSImageView!
     private var iconPreview: NSImageView!
     private var backgroundLabel: NSTextField!
@@ -20,24 +22,48 @@ final class SettingsWindowController: NSWindowController {
     private static var iconGeneration = 0
 
     init(onBackgroundChange: @escaping () -> Void, onAnimationsChange: @escaping () -> Void,
-         onSearchChange: @escaping (Bool, UInt32, UInt32) throws -> Void) {
+         onSearchChange: @escaping (Bool, UInt32, UInt32) throws -> Void,
+         onAutoArrange: @escaping () -> Void,
+         onSavedPresets: @escaping () throws -> [NativeSavedPreset],
+         onSavePreset: @escaping (String) throws -> String) {
         self.onBackgroundChange = onBackgroundChange
         self.onAnimationsChange = onAnimationsChange
         self.onSearchChange = onSearchChange
         super.init(window: nil)
-        buildWindow()
+        buildWindow(onAutoArrange: onAutoArrange, onSavedPresets: onSavedPresets, onSavePreset: onSavePreset)
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    private func buildWindow() {
+    private func buildWindow(onAutoArrange: @escaping () -> Void,
+                             onSavedPresets: @escaping () throws -> [NativeSavedPreset],
+                             onSavePreset: @escaping (String) throws -> String) {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 590, height: 710),
                               styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
         window.title = "Launcheer 设置"
         window.isReleasedWhenClosed = false
         let content = NSView()
         window.contentView = content
+        let tabs = NSTabView()
+        tabs.translatesAutoresizingMaskIntoConstraints = false
+        content.addSubview(tabs)
+        NSLayoutConstraint.activate([
+            tabs.topAnchor.constraint(equalTo: content.topAnchor, constant: 12),
+            tabs.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 12),
+            tabs.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -12),
+            tabs.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -12)
+        ])
+        let general = NSView()
+        let generalTab = NSTabViewItem(identifier: "general")
+        generalTab.label = "常规"
+        generalTab.view = general
+        tabs.addTabViewItem(generalTab)
+        autoArrangeView = AutoArrangeSettingsView(onArrange: onAutoArrange, onSavedPresets: onSavedPresets, onSavePreset: onSavePreset)
+        let arrangeTab = NSTabViewItem(identifier: "arrange")
+        arrangeTab.label = "智能整理"
+        arrangeTab.view = autoArrangeView
+        tabs.addTabViewItem(arrangeTab)
         let title = NSTextField(labelWithString: "Launcheer")
         title.font = .systemFont(ofSize: 23, weight: .semibold)
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as! String
@@ -77,14 +103,14 @@ final class SettingsWindowController: NSWindowController {
         help.textColor = .secondaryLabelColor
         let search = column([heading("快捷搜索"), searchCheckbox, row([NSTextField(labelWithString: "全局快捷键"), shortcutRecorder]), help])
         let stack = column([header, background, separator(), animationCheckbox, separator(), icon, separator(), search])
-        stack.spacing = 17
+        stack.spacing = 13
         stack.translatesAutoresizingMaskIntoConstraints = false
-        content.addSubview(stack)
+        general.addSubview(stack)
         NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: content.topAnchor, constant: 24),
-            stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: 24),
-            stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -24),
-            stack.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor, constant: -24),
+            stack.topAnchor.constraint(equalTo: general.topAnchor, constant: 16),
+            stack.leadingAnchor.constraint(equalTo: general.leadingAnchor, constant: 16),
+            stack.trailingAnchor.constraint(equalTo: general.trailingAnchor, constant: -16),
+            stack.bottomAnchor.constraint(lessThanOrEqualTo: general.bottomAnchor, constant: -16),
             background.widthAnchor.constraint(equalTo: stack.widthAnchor),
             icon.widthAnchor.constraint(equalTo: stack.widthAnchor),
             search.widthAnchor.constraint(equalTo: stack.widthAnchor),
@@ -99,6 +125,7 @@ final class SettingsWindowController: NSWindowController {
 
     func show() {
         refreshControls()
+        autoArrangeView.reload()
         showWindow(nil)
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)

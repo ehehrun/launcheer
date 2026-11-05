@@ -12,6 +12,7 @@ final class AppDelegate: NativeHost {
     private var itemObservation: NSKeyValueObservation?
     private var settingsController: SettingsWindowController?
     private var quickSearch: QuickSearchController?
+    private var autoArrangeTask: Task<Void, Never>?
 
     override func applicationDidFinishLaunching(_ notification: Notification) {
         if !verifying {
@@ -85,6 +86,7 @@ final class AppDelegate: NativeHost {
         controllerNavigation?.stop()
         controllerNavigation = nil
         applicationReloadTask?.cancel()
+        autoArrangeTask?.cancel()
         applicationDirectoryMonitor?.stop()
         runningApplicationMonitor?.stop()
         hotKeyManager?.stop()
@@ -117,10 +119,43 @@ final class AppDelegate: NativeHost {
                         ])
                     }
                     try manager.applySearchSettings(ShortcutSettings(isEnabled: enabled, keyCode: keyCode, modifiers: modifiers))
-                }
+                },
+                onAutoArrange: { [weak self] in self?.buildArrangement(nil) },
+                onSavedPresets: { [unowned self] in try self.savedPresets() },
+                onSavePreset: { [unowned self] title in try self.saveCurrentLayoutAs(title) }
             )
         }
         settingsController?.show()
+    }
+
+    @objc func buildArrangement(_ sender: Any?) {
+        guard !verifying, autoArrangeTask == nil else { return }
+        do {
+            let settings = try AutoArrangeSettings.load()
+            let urls = items
+            autoArrangeTask = Task { [weak self] in
+                defer { self?.autoArrangeTask = nil }
+                let groups: [AutoArrangeGroup]
+                if settings.customPreset == nil && settings.preset == .categories {
+                    let apps = await Task.detached(priority: .userInitiated) {
+                        AutoArrange.readApps(urls)
+                    }.value
+                    groups = AutoArrange.groups(apps: apps, settings: settings)
+                } else {
+                    groups = []
+                }
+                guard !Task.isCancelled, let self else { return }
+                do {
+                    try arrangeItems({ layout in
+                        AutoArrange.arrange(layout, settings: settings, groups: groups)
+                    }, forPreset: settings.selectedPresetID)
+                } catch {
+                    NSAlert(error: error).runModal()
+                }
+            }
+        } catch {
+            NSAlert(error: error).runModal()
+        }
     }
 
     private func toggleQuickSearch() {

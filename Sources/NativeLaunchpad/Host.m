@@ -2,6 +2,8 @@
 #import <QuartzCore/QuartzCore.h>
 #import <objc/runtime.h>
 #import <os/log.h>
+#import <errno.h>
+#import <stdio.h>
 #import "NativeDock.h"
 #import "Host.h"
 #import "NativeBackdrop.h"
@@ -288,6 +290,7 @@ static NSEvent *NavigationKeyEvent(unsigned short keyCode, BOOL pressed, BOOL re
 @property(nonatomic, strong) NSArray<NSURL *> *pendingItems;
 @property(nonatomic) BOOL layoutDirty;
 @property(nonatomic) BOOL layoutSaveScheduled;
+@property(nonatomic, copy) NSString *activePreset;
 @property(nonatomic) BOOL wantsLauncherVisible;
 @property(nonatomic, copy) dispatch_block_t hideTask;
 @property(nonatomic) NSUInteger hideGeneration;
@@ -300,8 +303,9 @@ static NSEvent *NavigationKeyEvent(unsigned short keyCode, BOOL pressed, BOOL re
 - (void)applyPendingItems;
 - (void)scheduleLayoutSave;
 - (BOOL)persistLayout;
+- (NSURL *)layoutURLForPreset:(NSString *)preset;
 - (BOOL)canMoveItemToTrash:(NSURL *)item;
-- (NSMenu *)contextMenuForItem:(NSURL *)item;
+- (NSMenu *)contextMenuForItem:(id)item;
 - (void)performRemoveActionForItem:(NSURL *)item withEvent:(id)event sender:(id)sender;
 - (void)restoreDockPresentation;
 - (void)showLauncherOnScreen:(NSScreen *)screen;
@@ -475,7 +479,7 @@ static NSEvent *NavigationKeyEvent(unsigned short keyCode, BOOL pressed, BOOL re
     for (CALayer *layer = [pagerLayer hitTest:point]; layer && layer != pagerLayer.superlayer; layer = layer.superlayer) {
         if (![layer respondsToSelector:@selector(item)]) { continue; }
         id item = [[layer item] clientItem];
-        if (![item isKindOfClass:NSURL.class]) { return nil; }
+        if (![item isKindOfClass:NSURL.class] && ![item isKindOfClass:NativeGroup.class]) { return nil; }
         [self.host finishGroupEditing];
         return [self.host contextMenuForItem:item];
     }
@@ -550,6 +554,7 @@ static NSEvent *NavigationKeyEvent(unsigned short keyCode, BOOL pressed, BOOL re
 - (instancetype)init {
     if ((self = [super init])) {
         _icons = [NSMutableDictionary dictionary];
+        _activePreset = [NSUserDefaults.standardUserDefaults stringForKey:@"arrange.activePreset"] ?: @"none";
     }
     return self;
 }
@@ -582,7 +587,12 @@ static NSEvent *NavigationKeyEvent(unsigned short keyCode, BOOL pressed, BOOL re
     for (NSURL *url in self.items) { [items addObject:url]; }
     self.items = items;
     NSError *layoutError = nil;
-    self.layout = [[NativeLayout alloc] initWithApps:items fileURL:self.verifying ? nil : NativeLayout.fileURL error:&layoutError];
+    if (self.verifying) { self.activePreset = @"none"; }
+    if (![@[@"none", @"categories", @"system"] containsObject:self.activePreset] && ![NativeLayout isSavedPreset:self.activePreset]) {
+        @throw [NSException exceptionWithName:@"NativeLayoutLoadError" reason:@"保存的智能整理模式无效。" userInfo:nil];
+    }
+    NSURL *layoutURL = [self layoutURLForPreset:self.activePreset];
+    self.layout = [[NativeLayout alloc] initWithApps:items fileURL:self.verifying ? nil : layoutURL error:&layoutError];
     if (!self.layout) { @throw [NSException exceptionWithName:@"NativeLayoutLoadError" reason:layoutError.localizedDescription userInfo:@{NSUnderlyingErrorKey:layoutError}]; }
     self.pages = self.layout.pages;
     CFTimeInterval layoutReady = CACurrentMediaTime();
@@ -655,6 +665,10 @@ static NSEvent *NavigationKeyEvent(unsigned short keyCode, BOOL pressed, BOOL re
 - (void)showSettings:(id)sender {
     if (self.verifying) { return; }
     [NSApp sendAction:NSSelectorFromString(@"openSettings:") to:NSApp.delegate from:sender];
+}
+- (void)autoArrange:(id)sender {
+    if (self.verifying) { return; }
+    [NSApp sendAction:NSSelectorFromString(@"buildArrangement:") to:NSApp.delegate from:sender];
 }
 - (void)refreshBackground {
     [self updateBackgroundMaterial:nil];
@@ -1025,7 +1039,7 @@ static NSEvent *NavigationKeyEvent(unsigned short keyCode, BOOL pressed, BOOL re
     NSMutableArray *retained = [NSMutableArray arrayWithCapacity:items.count];
     for (NSURL *url in items) { [retained addObject:url]; }
     NSError *error = nil;
-    NativeLayout *layout = [[NativeLayout alloc] initWithApps:retained fileURL:self.verifying ? nil : NativeLayout.fileURL error:&error];
+    NativeLayout *layout = [[NativeLayout alloc] initWithApps:retained fileURL:self.layout.destination error:&error];
     if (!layout) { [[NSAlert alertWithError:error] runModal]; return; }
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
@@ -1052,6 +1066,121 @@ static NSEvent *NavigationKeyEvent(unsigned short keyCode, BOOL pressed, BOOL re
     NSArray *items = self.pendingItems;
     self.pendingItems = nil;
     [self reloadItems:items];
+}
+- (NSURL *)layoutURLForPreset:(NSString *)preset {
+    NSURL *base = self.layout.destination ?: NativeLayout.fileURL;
+    if ([preset isEqualToString:@"none"]) { return [base.URLByDeletingLastPathComponent URLByAppendingPathComponent:@"native-layout.json"]; }
+    return [base.URLByDeletingLastPathComponent URLByAppendingPathComponent:[NSString stringWithFormat:@"native-layout-%@.json", preset]];
+}
+- (NSArray<NativeSavedPreset *> *)savedPresets:(NSError **)error {
+    if (self.verifying) { return @[]; }
+    NSURL *directory = [self layoutURLForPreset:@"none"].URLByDeletingLastPathComponent;
+    NSError *readError = nil;
+    NSArray<NSURL *> *files = [NSFileManager.defaultManager contentsOfDirectoryAtURL:directory includingPropertiesForKeys:nil options:NSDirectoryEnumerationSkipsHiddenFiles error:&readError];
+    if (!files) {
+        if ([readError.domain isEqualToString:NSCocoaErrorDomain] && readError.code == NSFileReadNoSuchFileError) { return @[]; }
+        if (error) { *error = readError; }
+        return nil;
+    }
+    NSMutableArray<NativeSavedPreset *> *presets = [NSMutableArray array];
+    for (NSURL *file in files) {
+        NSString *name = file.lastPathComponent;
+        if (![name hasPrefix:@"native-layout-saved-"] || ![name.pathExtension isEqualToString:@"json"]) { continue; }
+        NSString *id = [name.stringByDeletingPathExtension substringFromIndex:@"native-layout-".length];
+        if (![NativeLayout isSavedPreset:id]) { continue; }
+        NativeLayout *layout = [[NativeLayout alloc] initWithApps:self.items fileURL:file error:error];
+        if (!layout) { return nil; }
+        [presets addObject:[[NativeSavedPreset alloc] initWithID:id title:layout.title]];
+    }
+    [presets sortUsingComparator:^NSComparisonResult(NativeSavedPreset *first, NativeSavedPreset *second) {
+        NSComparisonResult order = [first.title localizedStandardCompare:second.title];
+        return order == NSOrderedSame ? [first.id compare:second.id] : order;
+    }];
+    return presets;
+}
+- (NSString *)saveCurrentLayoutAs:(NSString *)title error:(NSError **)error {
+    if (self.verifying || !self.layout) {
+        if (error) { *error = [NSError errorWithDomain:NSCocoaErrorDomain code:NSFeatureUnsupportedError userInfo:@{NSLocalizedDescriptionKey:@"当前不能保存分类。"}]; }
+        return nil;
+    }
+    if (self.hideTask || self.view.downLayer || [[[self.springboard eventHandler] dragCapture] dragging]) {
+        if (error) { *error = [NSError errorWithDomain:NSCocoaErrorDomain code:NSUserCancelledError userInfo:@{NSLocalizedDescriptionKey:@"请在拖动或过渡结束后再保存分类。"}]; }
+        return nil;
+    }
+    title = [title stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    if (title.length == 0) {
+        if (error) { *error = [NSError errorWithDomain:NSCocoaErrorDomain code:NSValidationErrorMinimum userInfo:@{NSLocalizedDescriptionKey:@"请填写分类名称。"}]; }
+        return nil;
+    }
+    NSArray<NativeSavedPreset *> *presets = [self savedPresets:error];
+    if (!presets) { return nil; }
+    for (NativeSavedPreset *preset in presets) {
+        if ([preset.title caseInsensitiveCompare:title] == NSOrderedSame) {
+            if (error) { *error = [NSError errorWithDomain:NSCocoaErrorDomain code:NSFileWriteFileExistsError userInfo:@{NSLocalizedDescriptionKey:@"已存在同名分类，请使用其他名称。"}]; }
+            return nil;
+        }
+    }
+    [self finishGroupEditing];
+    NSString *preset = [@"saved-" stringByAppendingString:NSUUID.UUID.UUIDString];
+    NSURL *destination = [self layoutURLForPreset:preset];
+    NSURL *temporary = [destination.URLByDeletingLastPathComponent URLByAppendingPathComponent:[NSString stringWithFormat:@".native-layout-%@.tmp", NSUUID.UUID.UUIDString]];
+    NativeLayout *snapshot = [self.layout copyToURL:temporary];
+    snapshot.title = title;
+    if (![snapshot save:error]) { return nil; }
+    // The SDK forbids combining NSDataWritingAtomic with NSDataWritingWithoutOverwriting.
+    if (renamex_np(temporary.fileSystemRepresentation, destination.fileSystemRepresentation, RENAME_EXCL) == 0) { return preset; }
+    int code = errno;
+    NSError *cleanupError = nil;
+    if (![NSFileManager.defaultManager removeItemAtURL:temporary error:&cleanupError]) { NSLog(@"Saved layout temporary file cleanup failed: %@", cleanupError); }
+    if (error) { *error = [NSError errorWithDomain:NSPOSIXErrorDomain code:code userInfo:@{NSURLErrorKey:destination}]; }
+    return nil;
+}
+- (BOOL)arrangeItems:(BOOL (^)(NativeLayout *layout))changes forPreset:(NSString *)preset error:(NSError **)error {
+    if (self.hideTask || self.view.downLayer || [[[self.springboard eventHandler] dragCapture] dragging]) {
+        if (error) { *error = [NSError errorWithDomain:NSCocoaErrorDomain code:NSUserCancelledError userInfo:@{NSLocalizedDescriptionKey:@"请在拖动或过渡结束后再整理。"}]; }
+        return NO;
+    }
+    if (![@[@"none", @"categories", @"system"] containsObject:preset] && ![NativeLayout isSavedPreset:preset]) {
+        if (error) { *error = [NSError errorWithDomain:NSCocoaErrorDomain code:NSValidationErrorMinimum userInfo:@{NSLocalizedDescriptionKey:@"智能整理模式无效。"}]; }
+        return NO;
+    }
+    [self finishGroupEditing];
+    BOOL switching = ![preset isEqualToString:self.activePreset];
+    NativeLayout *layout;
+    if (switching) {
+        if (![self.layout save:error]) { return NO; }
+        NSMutableArray<NSURL *> *apps = [NSMutableArray arrayWithCapacity:self.items.count];
+        for (NativePage *page in self.layout.pages) {
+            for (id item in page.items) {
+                if ([item isKindOfClass:NativeGroup.class]) {
+                    for (NativePage *groupPage in [item items]) { [apps addObjectsFromArray:groupPage.items]; }
+                } else { [apps addObject:item]; }
+            }
+        }
+        layout = [[NativeLayout alloc] initWithApps:apps fileURL:self.verifying ? nil : [self layoutURLForPreset:preset] error:error];
+        if (!layout) { return NO; }
+    } else { layout = [self.layout copy]; }
+    BOOL changed = changes(layout);
+    if ((switching || changed) && ![layout save:error]) { return NO; }
+    [CATransaction begin];
+    [CATransaction setDisableActions:YES];
+    [CATransaction setAnimationDuration:0];
+    [self searchTextCleared];
+    [[self.springboard.layer searchTextInputLayer] setStringValue:@""];
+    if (switching || changed) {
+        [self.springboard setGroupShown:NO];
+        [self restoreDockPresentation];
+        NSUInteger page = [[self.springboard pager] currentPageIndex];
+        self.layout = layout;
+        self.pages = layout.pages;
+        self.layoutDirty = NO;
+        self.activePreset = preset;
+        if (switching && !self.verifying) { [NSUserDefaults.standardUserDefaults setObject:preset forKey:@"arrange.activePreset"]; }
+        [self.springboard invalidate];
+        [[self.springboard pager] setCurrentPageIndex:MIN(page, self.pages.count - 1)];
+    }
+    [CATransaction commit];
+    return YES;
 }
 - (BOOL)persistLayout {
     if (!self.layoutDirty) { return YES; }
@@ -1219,18 +1348,34 @@ static NSEvent *NavigationKeyEvent(unsigned short keyCode, BOOL pressed, BOOL re
 }
 - (BOOL)shouldPresentAlertPanelForAction:(id)action ofItem:(id)item withEvent:(id)event { return NO; }
 - (BOOL)validateMenuItem:(NSMenuItem *)item {
+    if (item.action == @selector(flattenGroup:)) { return !self.verifying; }
     if (item.action == @selector(showSettings:)) { return !self.verifying; }
     if (item.action == @selector(authorizeDesktopImage:)) { return !self.verifying && !self.view.downLayer; }
     if (item.action == @selector(revealItemInFinder:)) { return !self.verifying; }
     return YES;
 }
-- (NSMenu *)contextMenuForItem:(NSURL *)item {
+- (NSMenu *)contextMenuForItem:(id)item {
     if (self.verifying) { return nil; }
+    if ([item isKindOfClass:NativeGroup.class]) {
+        NSMenu *menu = [[NSMenu alloc] initWithTitle:@""];
+        NSMenuItem *flatten = [menu addItemWithTitle:@"平铺" action:@selector(flattenGroup:) keyEquivalent:@""];
+        flatten.target = self;
+        flatten.representedObject = item;
+        return menu;
+    }
+    if (![item isKindOfClass:NSURL.class]) { return nil; }
     NSMenu *menu = [[NSMenu alloc] initWithTitle:@""];
     NSMenuItem *reveal = [menu addItemWithTitle:@"在 Finder 中显示" action:@selector(revealItemInFinder:) keyEquivalent:@""];
     reveal.target = self;
     reveal.representedObject = item;
     return menu;
+}
+- (void)flattenGroup:(NSMenuItem *)sender {
+    if (self.verifying) { return; }
+    NSError *error = nil;
+    if (![self arrangeItems:^BOOL(NativeLayout *layout) { return [layout flattenGroup:sender.representedObject]; } forPreset:self.activePreset error:&error]) {
+        [[NSAlert alertWithError:error] runModal];
+    }
 }
 - (void)revealItemInFinder:(NSMenuItem *)sender {
     if (self.verifying) { return; }
@@ -1387,6 +1532,7 @@ static NSEvent *NavigationKeyEvent(unsigned short keyCode, BOOL pressed, BOOL re
     BOOL version = [query isEqualToString:@"/version"];
     self.versionLabel.hidden = !version;
     if ([query isEqualToString:@"/settings"]) { [self showSettings:self]; return; }
+    if ([query isEqualToString:@"/智能整理"] || [query isEqualToString:@"/autobuild"]) { [self autoArrange:self]; return; }
     if (query.length == 0) {
         if (self.searchPages) {
             self.searchPages = nil;

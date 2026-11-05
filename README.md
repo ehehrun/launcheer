@@ -15,7 +15,8 @@ Launcheer brings the familiar Launchpad experience to your Mac: a full-screen ap
 | Feature | What you can do |
 | --- | --- |
 | App launcher | Browse apps across pages and launch them with a click |
-| Folders and layout | Drag to reorder apps, create folders, and move apps between them; your layout is saved locally |
+| Folders and layout | Drag to reorder apps, create folders, move apps between them, or right-click to ungroup; your layout is saved locally |
+| Auto arrange | Keep independent built-in layouts, or save a manual arrangement as a named layout |
 | Search | Find apps in the launcher, or enable a separate global search panel with name, Pinyin, and initial matching |
 | Keyboard and controller navigation | Move between apps, confirm a selection, and go back without a mouse |
 | Background | Follow your desktop wallpaper or choose a custom image, with a translucent background |
@@ -46,8 +47,10 @@ The first scan shows app names and placeholder icons, then fills in icons as the
 | Esc | Go back, then hide the launcher |
 | Drag an icon | Reorder apps or move them into or out of a folder |
 | Right-click an app | Show it in Finder |
+| Right-click a folder → Ungroup | Expand its apps in place, carrying overflow onto subsequent pages |
 | Controller D-pad or left stick / A / B | Select / confirm / go back |
 | `/version` in launcher search | Show the running version and build |
+| `/智能整理` or `/autobuild` in launcher search | Apply the saved arrangement rules |
 
 On the main grid, moving right past the last app selects the first app on the next page. In a folder, directional navigation stays within the current grid; press **B** to leave the folder.
 
@@ -59,6 +62,16 @@ On the main grid, moving right past the last app selects the first app on the ne
 - **Global app search:** enable it, then press **Option + Shift + Space**. Record a custom shortcut in settings; it must include Command, Option, or Control. Use ↑ / ↓ to select, Return to launch, and Esc to dismiss.
 
 Global app search is off by default and searches applications only. To use Command + Space, first free that shortcut in macOS Spotlight settings.
+
+Open **Settings → Auto Arrange**, choose and save a mode, then enter an arrangement command or select **Apply Now**:
+
+- **Uncategorized (default):** expand every folder and lay out all apps in their existing order, with up to 35 apps per page.
+- **Smart categories:** group apps into Developer Tools, Productivity & Finance, Business, Social, Utilities, Entertainment, Information & Reading, Creativity, Education, and Other. Edit rules using app categories and name filters; the first matching rule wins. Unmatched apps keep their relative order.
+- **System / other:** place built-in system apps first, then start other apps on a separate page, preserving order within each category and creating no folders. Each page holds up to 35 items; a category spanning more than one page continues on subsequent pages.
+
+Each mode saves its own layout without overwriting the others. Saving settings does not switch layouts; applying settings or entering an arrangement command does. Smart categories remove unnecessary root page breaks while preserving pages inside folders. Categories use each app’s declared public type rather than Apple’s private recommendation algorithm. Apps without a declared type use Other. Arrangement runs only when requested.
+
+After arranging icons, folders, and pages, select **Save as New Category…** and enter a name to save the complete active layout. Saving neither overwrites an existing layout nor switches the active mode. Choose **Saved: name** from the mode list and select **Apply Now** to use it. Named layouts preserve manual arrangements, even when an arrangement command is entered; subsequent manual edits are saved to that named layout. Use a different name to save another snapshot.
 
 ## FAQ
 

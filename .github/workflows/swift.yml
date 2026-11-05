@@ -31,6 +31,10 @@ jobs:
         run: |
           version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Resources/Info.plist)
           build=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' Resources/Info.plist)
+          if [[ "$version$build" == *[479]* ]]; then
+            printf '%s\n' '::error::Launcheer version and build must not contain 4, 7, or 9.'
+            exit 1
+          fi
           if [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF_NAME" != "v$version" ]]; then
             printf '::error::Tag %s does not match Info.plist; expected v%s.\n' "$GITHUB_REF_NAME" "$version"
             exit 1

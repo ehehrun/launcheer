@@ -7,7 +7,7 @@ import Testing
 @Suite(.serialized)
 @MainActor
 struct NativeContextMenuTests {
-    @Test(arguments: ["app", "folderApp", "folderOutside", "searchApp", "group", "blank", "drag", "capture"])
+    @Test(arguments: ["app", "folderApp", "folderOutside", "searchApp", "group", "unknown", "blank", "drag", "capture"])
     func contextMenuUsesOnlyTheHitApplicationsOriginalURL(target: String) throws {
         let type: AnyClass = try #require(NSClassFromString("NativeView"))
         let selector = NSSelectorFromString("menuForEvent:")
@@ -16,10 +16,16 @@ struct NativeContextMenuTests {
         let menu = unsafeBitCast(method_getImplementation(method), to: Menu.self)
         let input = ContextInput()
         let url = NSURL(fileURLWithPath: "/Applications/Context Menu Fixture.app")
+        let client: NSObject
+        switch target {
+        case "group": client = NativeGroup(id: "fixture-group", title: "Group", pages: [NativePage(items: [url])])
+        case "unknown": client = NSObject()
+        default: client = url
+        }
         if target != "blank" {
             let item = ContextItemLayer()
             item.frame = CGRect(x: 10, y: 10, width: 100, height: 100)
-            item.item.clientItem = target == "group" ? NSObject() : url
+            item.item.clientItem = client
             let image = CALayer()
             image.frame = item.bounds
             item.addSublayer(image)
@@ -36,11 +42,26 @@ struct NativeContextMenuTests {
 
         let point = target == "folderOutside" ? NSPoint(x: 10, y: 10) : NSPoint(x: 80, y: 95)
         let result = menu(input, selector, ContextEvent(point: point))?.takeUnretainedValue()
-        let application = ["app", "folderApp", "searchApp"].contains(target)
+        let application = ["app", "folderApp", "searchApp", "group"].contains(target)
 
         #expect(result === (application ? input.host.menu : nil))
-        #expect(input.host.url === (application ? url : nil))
+        #expect(input.host.url === (application ? client : nil))
         #expect(input.host.finishCount == (application ? 1 : 0))
+        #expect(NSApp == nil)
+    }
+
+    @Test func nativeGroupsOfferOnlyFlatteningAndUnknownItemsHaveNoMenu() throws {
+        let host = ContextHost()
+        let group = NativeGroup(id: "group-id", title: "Tools", pages: [NativePage(items: [URL(fileURLWithPath: "/Applications/Fixture.app")])])
+        let menu = try #require(try contextMenu(for: group, host: host))
+        #expect(menu.items.count == 1)
+        let item = try #require(menu.items.first)
+        #expect(item.title == "平铺" && item.action == NSSelectorFromString("flattenGroup:"))
+        let originalGroup = (item.representedObject as AnyObject) === (group as AnyObject)
+        #expect(originalGroup && item.target === host && host.validateMenuItem(item))
+        #expect(try contextMenu(for: NSObject(), host: host) == nil)
+        host.verifying = true
+        #expect(try contextMenu(for: group, host: host) == nil && !host.validateMenuItem(item))
         #expect(NSApp == nil)
     }
 
@@ -178,7 +199,7 @@ private func contextDockMenu(for host: NativeHost) throws -> NSMenu {
 }
 
 @MainActor
-private func contextMenu(for url: NSURL, host: NativeHost) throws -> NSMenu? {
+private func contextMenu(for url: NSObject, host: NativeHost) throws -> NSMenu? {
     let selector = NSSelectorFromString("contextMenuForItem:")
     let method = try #require(class_getInstanceMethod(NativeHost.self, selector))
     typealias Menu = @convention(c) (AnyObject, Selector, AnyObject) -> Unmanaged<AnyObject>?
@@ -227,11 +248,11 @@ private final class ContextInput: NSObject {
 @MainActor
 private final class ContextMenuLookup: NSObject {
     let menu = NSObject()
-    private(set) var url: NSURL?
+    private(set) var url: NSObject?
     private(set) var finishCount = 0
     @objc func finishGroupEditing() { finishCount += 1 }
     @objc(contextMenuForItem:)
-    func contextMenu(for url: NSURL) -> NSObject { self.url = url; return menu }
+    func contextMenu(for url: NSObject) -> NSObject { self.url = url; return menu }
 }
 
 private final class ContextSpringboard: NSObject {

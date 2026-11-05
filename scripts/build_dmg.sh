@@ -15,9 +15,13 @@ if [[ "$identifier" != launcheer.kodify.vip ]]; then
   printf '%s\n' 'The source app is not Launcheer.' >&2
   exit 1
 fi
-codesign --verify --deep --strict --verbose=2 "$APP"
 VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")
 BUILD=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Contents/Info.plist")
+if [[ "$VERSION$BUILD" == *[479]* ]]; then
+  printf '%s\n' 'Launcheer version and build must not contain 4, 7, or 9.' >&2
+  exit 1
+fi
+codesign --verify --deep --strict --verbose=2 "$APP"
 
 mkdir -p "$ROOT/tmp" "$OUTPUT_DIR"
 OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd)"

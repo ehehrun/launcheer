@@ -5,6 +5,12 @@ CONFIGURATION="${CONFIGURATION:-release}"
 export CLANG_MODULE_CACHE_PATH="$ROOT/.build/ModuleCache"
 export SWIFTPM_MODULECACHE_OVERRIDE="$ROOT/.build/ModuleCache"
 cd "$ROOT"
+VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Resources/Info.plist)
+BUILD=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' Resources/Info.plist)
+if [[ "$VERSION$BUILD" == *[479]* ]]; then
+  printf '%s\n' 'Launcheer version and build must not contain 4, 7, or 9.' >&2
+  exit 1
+fi
 swift build -c "$CONFIGURATION" --arch arm64
 BIN_DIR="$(swift build -c "$CONFIGURATION" --arch arm64 --show-bin-path)"
 mkdir -p "$ROOT/tmp"
