@@ -1,7 +1,7 @@
 import Foundation
 
-struct QuickSearchModel {
-    struct Item: Equatable {
+struct QuickSearchModel: Sendable {
+    struct Item: Equatable, Sendable {
         let url: URL
         let name: String
         fileprivate let searchText: [String]
@@ -30,7 +30,8 @@ struct QuickSearchModel {
             var terms = [Self.fold(name)]
             let filenameTerm = Self.fold(filename)
             if !terms.contains(filenameTerm) { terms.append(filenameTerm) }
-            if let latin = name.applyingTransform(.toLatin, reverse: false) {
+            let latin = name.unicodeScalars.allSatisfy(\.isASCII) ? name : name.applyingTransform(.toLatin, reverse: false)
+            if let latin {
                 let syllables = Self.fold(latin).split(whereSeparator: \.isWhitespace)
                 for term in [syllables.joined(), String(syllables.compactMap(\.first))] where !terms.contains(term) {
                     terms.append(term)
@@ -44,20 +45,36 @@ struct QuickSearchModel {
         }
     }
 
+    mutating func replaceIndex(with source: QuickSearchModel) {
+        let selectedURL = selectedItem?.url
+        items = source.items
+        search(query)
+        if let selectedURL, let index = results.firstIndex(where: { $0.url == selectedURL }) {
+            selectedIndex = index
+        }
+    }
+
     mutating func search(_ query: String) {
         self.query = query
+        results = matchingItems(query, limit: Self.resultLimit)
+        selectedIndex = results.isEmpty ? nil : 0
+    }
+
+    func matchingItems(_ query: String, limit: Int? = nil) -> [Item] {
         let term = Self.fold(query).filter { !$0.isWhitespace }
+        let matches: [Item]
         if term.isEmpty {
-            results = Array(items.prefix(Self.resultLimit))
+            matches = items
         } else {
-            results = items.enumerated().compactMap { index, item -> (Int, Int, Item)? in
+            matches = items.enumerated().compactMap { index, item -> (Int, Int, Item)? in
                 guard let rank = item.searchText.compactMap({ Self.rank(term, in: $0) }).min() else { return nil }
                 return (rank, index, item)
             }.sorted { lhs, rhs in
                 lhs.0 == rhs.0 ? lhs.1 < rhs.1 : lhs.0 < rhs.0
-            }.prefix(Self.resultLimit).map(\.2)
+            }.map(\.2)
         }
-        selectedIndex = results.isEmpty ? nil : 0
+        if let limit { return Array(matches.prefix(limit)) }
+        return matches
     }
 
     mutating func moveSelection(by offset: Int) {

@@ -7,6 +7,68 @@ import Testing
 @Suite(.serialized)
 @MainActor
 struct NativeHideAnimationTests {
+    @Test(arguments: [false, true])
+    func everyOpeningFocusesSearchIncludingAnInterruptedHide(animationsDisabled: Bool) throws {
+        let restoreMotion = try interceptHideMotion(false, animationsDisabled: { animationsDisabled })
+        defer { restoreMotion() }
+        let input = HideAnimationInput()
+        input.host.setValue(false, forKey: "wantsLauncherVisible")
+        let search = input.springboard.layer.searchTextInputLayer
+        var searchFocusCount = 0
+        input.window.onFirstResponder = { [weak input] responder in
+            guard let input else { return }
+            if responder === search {
+                searchFocusCount += 1
+                #expect(input.window.orderFrontCount == searchFocusCount)
+                #expect(input.cover.orderFrontCount == searchFocusCount - 1)
+            }
+        }
+
+        try show(input)
+        let initiallyFocused = input.window.firstResponder === search
+        #expect(initiallyFocused)
+        _ = input.window.makeFirstResponder(input.view)
+        input.host.hideLauncher()
+        #expect((input.host.value(forKey: "hideTask") != nil) == !animationsDisabled)
+        try show(input)
+        let refocusedDuringHide = input.window.firstResponder === search
+        #expect(refocusedDuringHide)
+        try immediateHide(input.host)
+        try show(input)
+        let refocusedAfterHiding = input.window.firstResponder === search
+        #expect(refocusedAfterHiding && searchFocusCount == 3)
+        try immediateHide(input.host)
+        #expect(NSApp == nil)
+    }
+
+    @Test(arguments: ["ordering", "focus"])
+    func anInvalidatedShowStopsBeforeRaisingTheCoverOrPreparingMoreContent(interruption: String) throws {
+        let restoreMotion = try interceptHideMotion(false)
+        defer { restoreMotion() }
+        let input = HideAnimationInput()
+        input.host.setValue(false, forKey: "wantsLauncherVisible")
+        let search = input.springboard.layer.searchTextInputLayer
+        var searchFocusCount = 0
+        if interruption == "ordering" {
+            input.window.onOrderFront = { [weak input] in input?.host.hideLauncher() }
+        }
+        input.window.onFirstResponder = { [weak input] responder in
+            guard let input else { return }
+            if responder === search {
+                searchFocusCount += 1
+                if interruption == "focus" { input.host.hideLauncher() }
+            }
+        }
+
+        try show(input)
+
+        #expect(!input.host.wantsLauncherVisible && input.window.ignoresMouseEvents)
+        #expect(searchFocusCount == (interruption == "ordering" ? 0 : 1))
+        #expect(input.cover.orderFrontCount == 0 && input.host.preparedDesktopCount == 0)
+        try immediateHide(input.host)
+        #expect(NSApp == nil)
+    }
+
     @Test(arguments: [CGFloat(0), 0.5], [false, true])
     func theTransitionKeepsTheGeometryAndModelLayersUnchanged(anchor: CGFloat, reduceMotion: Bool) throws {
         let restoreMotion = try interceptHideMotion(reduceMotion)
@@ -609,6 +671,7 @@ private final class HideAnimationInput {
 
 private final class HideAnimationHost: NativeHost {
     private(set) var appliedItems: [URL]?
+    private(set) var preparedDesktopCount = 0
     @objc func applyPendingItems() {
         appliedItems = value(forKey: "pendingItems") as? [URL]
         setValue(nil, forKey: "pendingItems")
@@ -618,7 +681,7 @@ private final class HideAnimationHost: NativeHost {
     @objc(updateMenuBarCoverForScreen:)
     func updateMenuBarCover(_ screen: NSObject) {}
     @objc(prepareDesktopForScreen:)
-    func prepareDesktop(_ screen: NSObject) {}
+    func prepareDesktop(_ screen: NSObject) { preparedDesktopCount += 1 }
     @objc(prepareIconsForItems:pixelSize:)
     func prepareIcons(_ items: [URL], pixelSize: UInt) {}
 }
@@ -631,11 +694,17 @@ private final class HideAnimationWindow: NSObject {
     @objc var isKeyWindow: Bool { false }
     private(set) var orderOutCount = 0
     private(set) var orderFrontCount = 0
+    private(set) var firstResponder: NSObject?
     var onOrderFront: (() -> Void)?
+    var onFirstResponder: ((NSObject?) -> Void)?
     @objc func orderOut(_ sender: NSObject?) { orderOutCount += 1 }
     @objc func makeKeyAndOrderFront(_ sender: NSObject?) { orderFront(sender) }
     @objc func orderFront(_ sender: NSObject?) { orderFrontCount += 1; onOrderFront?() }
-    @objc func makeFirstResponder(_ responder: NSObject?) -> Bool { true }
+    @objc func makeFirstResponder(_ responder: NSObject?) -> Bool {
+        firstResponder = responder
+        onFirstResponder?(responder)
+        return true
+    }
     @objc(setFrame:display:)
     func setFrame(_ frame: NSRect, display: Bool) {}
 }

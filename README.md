@@ -17,7 +17,7 @@ Launcheer brings the familiar Launchpad experience to your Mac: a full-screen ap
 | App launcher | Browse apps across pages and launch them with a click |
 | Folders and layout | Drag to reorder apps, create folders, move apps between them, or right-click to ungroup; your layout is saved locally |
 | Auto arrange | Keep independent built-in layouts, or save a manual arrangement as a named layout |
-| Search | Find apps in the launcher, or enable a separate global search panel with name, Pinyin, and initial matching |
+| Search | Both the launcher and the global search panel support names, Pinyin, and initials |
 | Keyboard and controller navigation | Move between apps, confirm a selection, and go back without a mouse |
 | Background | Follow your desktop wallpaper or choose a custom image, with a translucent background |
 | Appearance | Use fade and blur transitions, turn transitions off, or change Launcheer’s Dock icon |
@@ -53,6 +53,8 @@ The first scan shows app names and placeholder icons, then fills in icons as the
 | `/智能整理` or `/autobuild` in launcher search | Apply the saved arrangement rules |
 
 On the main grid, moving right past the last app selects the first app on the next page. In a folder, directional navigation stays within the current grid; press **B** to leave the folder.
+
+Opening the launcher focuses the search field so you can type immediately. Both search entry points use the same rules: find 微信 with `微信`, `weixin`, or `wx`, and 支付宝 with `zhifubao` or `zfb`. Matching ignores case, tone marks, and spaces in the query. Exact matches rank before prefixes, substrings, and ordered abbreviations. The launcher shows all matches; the quick panel shows up to eight. Search covers scanned applications. Pinyin uses system transliteration and may not cover every pronunciation of a character.
 
 ## Settings
 

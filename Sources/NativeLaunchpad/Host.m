@@ -319,6 +319,7 @@ static NSEvent *NavigationKeyEvent(unsigned short keyCode, BOOL pressed, BOOL re
 - (NSTimeInterval)animateLauncherVisible:(BOOL)visible;
 - (void)removeVisibilityAnimations;
 - (void)removeDissolveFilter;
+- (void)applySearchQuery:(NSString *)query;
 @end
 
 @implementation NativeView
@@ -808,8 +809,10 @@ static NSEvent *NavigationKeyEvent(unsigned short keyCode, BOOL pressed, BOOL re
     if ([NSUserDefaults.standardUserDefaults boolForKey:@"animations.disabled"]) { [self removeVisibilityAnimations]; }
     else { duration = [self animateLauncherVisible:YES]; }
     [self.window makeKeyAndOrderFront:nil];
-    [self.window makeFirstResponder:self.view];
+    if (generation != self.hideGeneration) { return; }
     [NSApp activateIgnoringOtherApps:YES];
+    if (generation != self.hideGeneration) { return; }
+    [self.window makeFirstResponder:self.search];
     if (generation != self.hideGeneration) { return; }
     [self.menuBarCoverWindow orderFront:nil];
     [CATransaction flush];
@@ -1527,6 +1530,26 @@ static NSEvent *NavigationKeyEvent(unsigned short keyCode, BOOL pressed, BOOL re
     [field removeFromSuperview];
 }
 - (void)searchTextCleared { [self searchTextChanged:@""]; }
+- (NSArray<NSURL *> *)matchingItemsForQuery:(NSString *)query {
+    NSPredicate *predicate = [NSPredicate predicateWithBlock:^BOOL(NSURL *url, NSDictionary *bindings) {
+        NSString *title = [NSFileManager.defaultManager displayNameAtPath:url.path];
+        return [title rangeOfString:query options:NSCaseInsensitiveSearch | NSDiacriticInsensitiveSearch].location != NSNotFound;
+    }];
+    return [self.items filteredArrayUsingPredicate:predicate];
+}
+- (void)applySearchQuery:(NSString *)query {
+    NSArray<NSURL *> *matches = [self matchingItemsForQuery:query];
+    self.searchPages = [self pagesForItems:matches];
+    [self.springboard filterUsingItems:matches];
+}
+- (void)refreshSearchResults {
+    if (!self.wantsLauncherVisible) { return; }
+    NSString *query = self.search.stringValue;
+    if (query.length == 0 || [query isEqualToString:@"/settings"] || [query isEqualToString:@"/version"] ||
+        [query isEqualToString:@"/智能整理"] || [query isEqualToString:@"/autobuild"]) { return; }
+    [self applySearchQuery:query];
+    [self.view setNeedsLayout:YES];
+}
 - (void)searchTextChanged:(NSString *)query {
     if (![self.search.stringValue isEqualToString:query]) { self.search.stringValue = query; }
     BOOL version = [query isEqualToString:@"/version"];
@@ -1546,13 +1569,7 @@ static NSEvent *NavigationKeyEvent(unsigned short keyCode, BOOL pressed, BOOL re
         [self.springboard filterUsingItems:@[]];
     }
     else {
-        NSPredicate *predicate = [NSPredicate predicateWithBlock:^BOOL(NSURL *url, NSDictionary *bindings) {
-            NSString *title = [NSFileManager.defaultManager displayNameAtPath:url.path];
-            return [title rangeOfString:query options:NSCaseInsensitiveSearch | NSDiacriticInsensitiveSearch].location != NSNotFound;
-        }];
-        NSArray *matches = [self.items filteredArrayUsingPredicate:predicate];
-        self.searchPages = [self pagesForItems:matches];
-        [self.springboard filterUsingItems:matches];
+        [self applySearchQuery:query];
     }
     [self.view setNeedsLayout:YES];
 }

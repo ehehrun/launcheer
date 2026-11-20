@@ -11,8 +11,8 @@ final class QuickSearchController: NSWindowController, NSTextFieldDelegate, NSTa
     private var availableHeight: CGFloat = 0
     private static let contentPadding: CGFloat = 116
 
-    init(items: [URL], iconProvider: @escaping (URL) -> NSImage?) {
-        model = QuickSearchModel(items: items)
+    init(model: QuickSearchModel, iconProvider: @escaping (URL) -> NSImage?) {
+        self.model = model
         self.iconProvider = iconProvider
         super.init(window: nil)
         buildWindow()
@@ -134,8 +134,8 @@ final class QuickSearchController: NSWindowController, NSTextFieldDelegate, NSTa
         window = panel
     }
 
-    func updateItems(_ items: [URL]) {
-        model.updateItems(items)
+    func updateIndex(_ model: QuickSearchModel) {
+        self.model.replaceIndex(with: model)
         if window!.isVisible { reloadResults() }
     }
 

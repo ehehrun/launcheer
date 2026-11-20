@@ -19,6 +19,8 @@ NS_SWIFT_UI_ACTOR
 - (void)hideLauncherImmediately;
 - (void)toggleLauncher;
 - (void)reloadItems:(NSArray<NSURL *> *)items;
+- (NSArray<NSURL *> *)matchingItemsForQuery:(NSString *)query NS_SWIFT_NAME(matchingItems(for:));
+- (void)refreshSearchResults;
 - (BOOL)canMoveItemToTrash:(NSURL *)item;
 - (void)authorizeDesktopImage:(id)sender;
 - (void)showSettings:(id)sender;

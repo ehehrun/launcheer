@@ -34,6 +34,63 @@ struct QuickSearchTests {
         #expect(search.results.isEmpty && search.selectedItem == nil)
     }
 
+    @Test func chinesePinyinInitialsAndMixedNamesUseTheSameIndex() {
+        let urls = fixtures("微信", "支付宝", "微信 Work", "Visual Studio Code")
+        let search = QuickSearchModel(items: urls)
+        for query in ["支付宝", "zhifubao", "zhi fu bao", "zfb", "ＺＦＢ"] {
+            #expect(search.matchingItems(query).first?.url == urls[1])
+        }
+        for query in ["微信", "weixin", "w e i x i n", "wx"] {
+            #expect(search.matchingItems(query).first?.url == urls[0])
+        }
+        for query in ["wxw", "weixinwork", "微信work"] {
+            #expect(search.matchingItems(query).first?.url == urls[2])
+        }
+        #expect(search.matchingItems("wwx").isEmpty)
+        #expect(search.matchingItems("scv").isEmpty)
+    }
+
+    @Test func asciiInitialsKeepTheirPriorityWithoutTransliteration() {
+        let urls = fixtures("X Visual Studio Code", "vsc Extension", "Visual Studio Code")
+        let search = QuickSearchModel(items: urls)
+        #expect(search.matchingItems("vsc").map(\.url) == [urls[2], urls[1], urls[0]])
+    }
+
+    @Test func launcherMatchesAreUnlimitedWhileQuickSearchKeepsItsVisibleLimit() {
+        let urls = (0..<24).map { URL(fileURLWithPath: "/Applications/微信 \($0).app") }
+        var search = QuickSearchModel(items: urls)
+        search.search("wx")
+        search.select(3)
+
+        let all = search.matchingItems("wx")
+
+        #expect(all.map(\.url) == urls)
+        #expect(search.results.map(\.url) == Array(urls.prefix(8)))
+        #expect(search.query == "wx" && search.selectedItem?.url == urls[3])
+        #expect(search.matchingItems(" \n\t ").map(\.url) == urls)
+        #expect(search.matchingItems("wx", limit: 3).map(\.url) == Array(urls.prefix(3)))
+    }
+
+    @Test func replacingTheSharedIndexPreservesLocalQueryAndSelection() {
+        let urls = fixtures("Alpha", "Beta", "Gamma", "Delta")
+        var panel = QuickSearchModel(items: Array(urls.prefix(3)))
+        panel.search("a")
+        panel.select(1)
+        var refreshed = QuickSearchModel(items: [urls[2], urls[1], urls[3]])
+        refreshed.search("delta")
+
+        panel.replaceIndex(with: refreshed)
+
+        #expect(panel.query == "a" && panel.selectedItem?.url == urls[1])
+        #expect(!panel.results.contains { $0.url == urls[0] })
+        #expect(panel.results.contains { $0.url == urls[3] })
+        #expect(refreshed.query == "delta" && refreshed.selectedItem?.url == urls[3])
+        panel.replaceIndex(with: QuickSearchModel(items: [urls[2], urls[3]]))
+        #expect(panel.query == "a" && panel.selectedIndex == 0 && panel.selectedItem?.url == urls[2])
+        panel.search("gamma")
+        #expect(refreshed.query == "delta" && refreshed.selectedItem?.url == urls[3])
+    }
+
     @Test func selectionStopsAtVisibleBoundariesAndEmptySearchHasNoLaunchTarget() {
         let urls = (0..<12).map { URL(fileURLWithPath: "/Applications/Fixture \($0).app") }
         var search = QuickSearchModel(items: urls)

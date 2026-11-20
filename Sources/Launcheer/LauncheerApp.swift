@@ -13,6 +13,8 @@ final class AppDelegate: NativeHost {
     private var settingsController: SettingsWindowController?
     private var quickSearch: QuickSearchController?
     private var autoArrangeTask: Task<Void, Never>?
+    private var searchModel = QuickSearchModel(items: [])
+    private var searchIndexTask: Task<Void, Never>?
 
     override func applicationDidFinishLaunching(_ notification: Notification) {
         if !verifying {
@@ -65,8 +67,8 @@ final class AppDelegate: NativeHost {
                 NSAlert(error: error).runModal()
             }
         }
-        itemObservation = observe(\.items, options: [.new]) { [weak self] host, _ in
-            MainActor.assumeIsolated { self?.quickSearch?.updateItems(host.items) }
+        itemObservation = observe(\.items, options: [.initial, .new]) { [weak self] host, _ in
+            MainActor.assumeIsolated { self?.updateSearchIndex(host.items) }
         }
         iconDidLoad = { [weak self] url in
             MainActor.assumeIsolated { self?.quickSearch?.refreshIcon(for: url) }
@@ -87,6 +89,7 @@ final class AppDelegate: NativeHost {
         controllerNavigation = nil
         applicationReloadTask?.cancel()
         autoArrangeTask?.cancel()
+        searchIndexTask?.cancel()
         applicationDirectoryMonitor?.stop()
         runningApplicationMonitor?.stop()
         hotKeyManager?.stop()
@@ -97,6 +100,24 @@ final class AppDelegate: NativeHost {
         quickSearch?.hide()
         settingsController?.window?.orderOut(nil)
         super.showLauncher()
+    }
+
+    override func matchingItems(for query: String) -> [URL] {
+        if verifying { return super.matchingItems(for: query) }
+        return searchModel.matchingItems(query).map(\.url)
+    }
+
+    private func updateSearchIndex(_ urls: [URL]) {
+        searchIndexTask?.cancel()
+        searchIndexTask = Task { [weak self] in
+            let model = await Task.detached(priority: .userInitiated) {
+                QuickSearchModel(items: urls)
+            }.value
+            guard !Task.isCancelled, let self else { return }
+            searchModel = model
+            quickSearch?.updateIndex(model)
+            refreshSearchResults()
+        }
     }
 
     @objc func openSettings(_ sender: Any?) {
@@ -166,7 +187,7 @@ final class AppDelegate: NativeHost {
         hideLauncherImmediately()
         settingsController?.window?.orderOut(nil)
         if quickSearch == nil {
-            quickSearch = QuickSearchController(items: items, iconProvider: { [weak self] url in self?.icon(forItem: url) })
+            quickSearch = QuickSearchController(model: searchModel, iconProvider: { [weak self] url in self?.icon(forItem: url) })
         }
         quickSearch?.toggle()
     }
